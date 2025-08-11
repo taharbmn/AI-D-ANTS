@@ -129,6 +129,12 @@ class Config:
 # Create a global config instance
 config = Config()
 
+
+# Global variables for caching
+system_prompts: Dict[str, str] = {}
+client_cache: Dict[str, Any] = {}
+
+
 def initialize_config() -> Config:
     """
     Initialize and return the global configuration instance.
@@ -139,41 +145,12 @@ def initialize_config() -> Config:
     global config
     return config
 
-def initialize_cache_client() -> Dict[str, Any]:
-    """
-    Initialize and return a client cache.
-    
-    Returns:
-        Dictionary with initialized clients
-    """
-    global client_cache
-    client_cache = {
-        'databricks': None,
-        'ollama': None
-    }
-    
-    if config.client_type == 'databricks':
-        if config.validate_databricks_config():
-            from app.chatproxy.dbx_client import DatabricksModel
-            client_cache['databricks'] = DatabricksModel(
-                model_name=config.model_id,
-                base_url=config.DATABRICKS_BASE_URL
-            )
-        else:
-            raise ValueError("Invalid Databricks configuration")
-    
-    elif config.client_type == 'ollama':
-        from app.chatproxy.ollama_client import OllamaClient
-        client_cache['ollama'] = OllamaClient(model_name=config.model_id)
-    
-    return client_cache
-
 def load_system_prompts() -> dict[str, str]:
     """Load all system prompts into memory at startup"""
     global system_prompts
     import logging
     logger = logging.getLogger(__name__)
-    system_prompts = {}
+    system_prompts.clear()  # Clear existing prompts
      
     for agent_name, agent_config in config.AGENT_CONFIGS.items():
          prompt_path = agent_config.get("system_prompt_path")
@@ -188,3 +165,42 @@ def load_system_prompts() -> dict[str, str]:
                 raise RuntimeError(f"Error reading system prompt for agent '{agent_name}': {e}")
     
     return system_prompts
+
+def initialize_cache_client() -> Dict[str, Any]:
+    """
+    Initialize and return a client cache.
+    
+    Returns:
+        Dictionary with initialized clients
+    """
+    global client_cache
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Clear existing cache
+    client_cache.clear()
+    client_cache.update({
+        'databricks': None,
+        'ollama': None
+    })
+    
+    logger.info(f"Initializing client cache with client_type: {config.client_type}")
+    
+    if config.client_type == 'databricks':
+        if config.validate_databricks_config():
+            from app.chatproxy.dbx_client import DatabricksModel
+            client_cache['databricks'] = DatabricksModel(
+                model_name=config.model_id,
+                base_url=config.DATABRICKS_BASE_URL
+            )
+            logger.info("Databricks client initialized successfully")
+        else:
+            raise ValueError("Invalid Databricks configuration")
+    
+    elif config.client_type == 'ollama':
+        from app.chatproxy.ollama_client import OllamaClient
+        client_cache['ollama'] = OllamaClient(model_name=config.model_id)
+        logger.info(f"Ollama client initialized successfully with model: {config.model_id}")
+    
+    logger.info(f"Client cache initialized: {list(client_cache.keys())}")
+    return client_cache

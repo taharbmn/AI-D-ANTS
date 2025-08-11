@@ -60,7 +60,7 @@ async def get_metadata(
 
     
     # Directly call the metadata function instead of HTTP request
-    file_metadata_result = get_file_metadata_from_s3(request.filepath, "csv")
+    file_metadata_result = get_file_metadata(request.filepath)
     
     if not file_metadata_result["status"]:
         return JSONResponse(
@@ -171,13 +171,13 @@ def get_file_data_wrapper(file_path: str) -> Dict[str, Any]:
         }
 
 
-def get_file_metadata_from_s3(s3_path: str) -> Dict[str, Any]:
+def get_file_metadata(file_path: str) -> Dict[str, Any]:
     """
-    Get metadata of file from S3 using AWS Data Wrangler.
+    Get metadata of files
     
     Args:
-        s3_path: S3 path to the file (e.g., 's3://bucket/path/file.csv')
-        
+        file_path: Path to the file (S3 or local)
+
     Returns:
         Dict with status, result (metadata), error, and execution_time
     """
@@ -185,8 +185,8 @@ def get_file_metadata_from_s3(s3_path: str) -> Dict[str, Any]:
     start_time = time.perf_counter()
 
 
-    fileinfo = get_file_data_wrapper(s3_path)
-    file_type = s3_path.split('.')[-1].lower() if '.' in s3_path else 'unknown'
+    fileinfo = get_file_data_wrapper(file_path)
+    file_type = file_path.split('.')[-1].lower() if '.' in file_path else 'unknown'
 
     try:
         if (not fileinfo["status"]) or fileinfo["error"]:
@@ -194,7 +194,7 @@ def get_file_metadata_from_s3(s3_path: str) -> Dict[str, Any]:
         df = fileinfo["result"]
         metadata = {
             "file_info": {
-                "path": s3_path,
+                "path": file_path,
                 "file_type": file_type,
                 "shape": {
                     "rows"   : int(df.shape[0]),
@@ -220,6 +220,6 @@ def get_file_metadata_from_s3(s3_path: str) -> Dict[str, Any]:
         return {
             "status"  : False,
             "metadata": None,
-            "error"   : f"Failed to get metadata for {s3_path}. Error: {type(e).__name__}: {str(e)}",
+            "error"   : f"Failed to get metadata for {file_path}. Error: {type(e).__name__}: {str(e)}",
             "execution_time": f"{(time.perf_counter() - start_time) * 1000:.3f}ms"
         }
