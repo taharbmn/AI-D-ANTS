@@ -13,10 +13,8 @@ const initialEnv = {
 };
 
 const SettingsModal = ({
-  open,
   onClose,
 }: {
-  open: boolean;
   onClose: () => void;
 }) => {
   const [env, setEnv] = useState(initialEnv);

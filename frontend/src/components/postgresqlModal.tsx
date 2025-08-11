@@ -10,10 +10,8 @@ const initialPostgreSQLConfig = {
 };
 
 const PostgreSQLModal = ({
-  open,
   onClose,
 }: {
-  open: boolean;
   onClose: () => void;
 }) => {
   const [config, setConfig] = useState(initialPostgreSQLConfig);

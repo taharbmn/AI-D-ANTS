@@ -32,7 +32,6 @@ const Sidebar = () => {
         <span className=" font-bold text-2xl mt-2">D-ANTS</span>
       </div>
       <div className=" space-y-2">
-        {/* Chat History Section */}
         <div>
           <div 
             onClick={() => setOpenChatHistory(!openChatHistory)} 
@@ -47,7 +46,6 @@ const Sidebar = () => {
               className={`text-gray-400 transition-transform duration-300 ${openChatHistory ? 'rotate-180' : ''}`}
             />
           </div>
-          {/* Chat History Dropdown with smooth animation */}
           <div 
             className={`ml-6 overflow-hidden transition-all duration-500 ease-in-out ${
               openChatHistory ? 'max-h-80 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
@@ -72,7 +70,6 @@ const Sidebar = () => {
           </div>
         </div>
 
-        {/* Settings Section */}
         <div>
           <div 
             onClick={() => setOpenSettings(!openSettings)} 
@@ -87,7 +84,6 @@ const Sidebar = () => {
               className={`text-gray-400 transition-transform duration-300 ${openSettings ? 'rotate-180' : ''}`}
             />
           </div>
-          {/* Settings Dropdown with smooth animation */}
           <div 
             className={`ml-6 overflow-hidden transition-all duration-500 ease-in-out ${
               openSettings ? 'max-h-32 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
@@ -121,16 +117,13 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Modals */}
       {showDatabricksModal && (
         <SettingsModal 
-          open={showDatabricksModal} 
           onClose={() => setShowDatabricksModal(false)} 
         />
       )}
       {showPostgreSQLModal && (
         <PostgreSQLModal
-          open={showPostgreSQLModal} 
           onClose={() => setShowPostgreSQLModal(false)} 
         />
       )}

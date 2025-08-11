@@ -149,7 +149,7 @@ export default function Home() {
                     Select buckets from the Data Explorer panel →
                   </div>
                   <div className="text-xs text-gray-400">
-                    Click the "Add" button next to any bucket to include it in
+                    Click the &quot;Add&quot; button next to any bucket to include it in
                     your conversation.
                   </div>
                   <button
