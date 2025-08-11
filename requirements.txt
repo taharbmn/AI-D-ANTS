@@ -1,0 +1,24 @@
+# Core dependencies
+fastapi>=0.104.1
+uvicorn>=0.24.0
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+
+# OpenAI for Databricks integration
+openai>=1.3.0
+
+# AWS and HTTP clients
+boto3>=1.34.0
+httpx>=0.25.0
+
+# Data processing and Delta Lake
+pandas>=2.0.0
+numpy>=1.24.0
+deltalake>=0.15.0
+pyarrow>=14.0.0
+
+
+
+# Optional development dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

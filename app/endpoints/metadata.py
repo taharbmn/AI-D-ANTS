@@ -47,27 +47,17 @@ async def get_metadata(
     request: MetaDataRequest
 ):
     """
-        Get metadata for a file using Databricks AI for analysis
+        Get metadata for a file using AI for analysis
     Args:
         request (MetaDataRequest): The request containing the file path.
     Returns:
         JSONResponse: A response containing the metadata or an error message.
     Example Body:
         {
-            "filepath": "s3://test-coder-baiss/sales_data_s3.csv"
+            "filepath": "s3://test-coder/sales_data_s3.csv"
         }
     """
-    # No longer require tool_config since we call the function directly
-    # if not request.tool_config or len(request.tool_config) == 0:
-    #     return JSONResponse(
-    #         status_code = 400,
-    #         content = {
-    #             "status" : 400,
-    #             "success": False,
-    #             "result" : None,
-    #             "error"  : "Tool configuration is required"
-    #         }
-    #     )
+
     
     # Directly call the metadata function instead of HTTP request
     file_metadata_result = get_file_metadata_from_s3(request.filepath, "csv")
@@ -155,19 +145,18 @@ async def get_metadata(
     )
 
 
-def get_file_data_wrapper(file_path: str, file_type: str) -> Dict[str, Any]:
+def get_file_data_wrapper(file_path: str) -> Dict[str, Any]:
     """
     Wrapper function to read file data using FileReader and return standardized result.
     
     Args:
         file_path: Path to the file (S3 or local)
-        file_type: Type of file to read ('csv', 'xlsx', 'parquet', 'json')
         
     Returns:
         Dict with status, result (DataFrame), and error
     """
     try:
-        file_reader = FileReader(file_path, file_type)
+        file_reader = FileReader(file_path)
         df = file_reader.read_dataframe()
         return {
             "status": True,
@@ -182,24 +171,22 @@ def get_file_data_wrapper(file_path: str, file_type: str) -> Dict[str, Any]:
         }
 
 
-def get_file_metadata_from_s3(s3_path: str, file_type: str) -> Dict[str, Any]:
+def get_file_metadata_from_s3(s3_path: str) -> Dict[str, Any]:
     """
     Get metadata of file from S3 using AWS Data Wrangler.
     
     Args:
         s3_path: S3 path to the file (e.g., 's3://bucket/path/file.csv')
-        file_type: Type of file to read ('csv', 'xlsx', 'parquet')
         
     Returns:
         Dict with status, result (metadata), error, and execution_time
     """
 
     start_time = time.perf_counter()
-    file_type  = str(file_type).strip().lower()
-    if not file_type:
-        file_type = str(s3_path).strip().strip(".").split(".")[-1].strip()
 
-    fileinfo = get_file_data_wrapper(s3_path, file_type)
+
+    fileinfo = get_file_data_wrapper(s3_path)
+    file_type = s3_path.split('.')[-1].lower() if '.' in s3_path else 'unknown'
 
     try:
         if (not fileinfo["status"]) or fileinfo["error"]:

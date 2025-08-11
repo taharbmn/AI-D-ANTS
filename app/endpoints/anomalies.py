@@ -41,7 +41,7 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 # Create router
-router = APIRouter(prefix = "/anomalies", tags = ["anomalies"])
+router = APIRouter()
 
 @router.post("/create-structure")
 async def create_structure(request: CreateStructureRequest):

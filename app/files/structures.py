@@ -183,7 +183,7 @@ class TreeStructure:
                     "depth"        : relative_path.count('/'),
                     "etag"         : response['ETag'],
                     "last_modified": str(response['LastModified']),
-                    "content_type" : response.get('ContentType'), # ila kan text/plain check extension
+                    "content_type" : response.get('ContentType'),
                     "size"         : response['ContentLength'],
                     "children"     : None,
                     "keywords"     : None
@@ -385,7 +385,6 @@ class TreeStructure:
         metadata = element.get("metadata", {})
         if not isinstance(metadata, dict) or not metadata:
             raise ValueError("Element metadata is not a valid dictionary or is empty.")
-        from app.chatproxy.dbx_model import DatabricksModel
         dbx_client = DatabricksModel()
         messages = [
             {
@@ -446,7 +445,6 @@ class TreeStructure:
                 )
         if not body["files"] and not body["directories"]:
             raise ValueError("Group is empty or does not contain valid elements.")
-        from app.chatproxy.dbx_model import DatabricksModel
         dbx_client = DatabricksModel()
         messages = [
             {
