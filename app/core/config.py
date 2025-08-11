@@ -19,7 +19,7 @@ class Config:
     )
     
     # AWS Configuration (for S3 operations)
-    AWS_REGION: str = os.environ.get('AWS_REGION', 'us-east-1')
+    AWS_REGION: str = os.environ.get('AWS_REGION', '')
     AWS_ACCESS_KEY_ID: str = os.environ.get('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY: str = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
     
@@ -30,6 +30,51 @@ class Config:
     # API Settings
     API_TIMEOUT: int = int(os.environ.get('API_TIMEOUT', '30'))
     MAX_RETRIES: int = int(os.environ.get('MAX_RETRIES', '3'))
+
+    MODEL_TYPE: str = os.environ.get('MODEL_TYPE', '')
+    OLLAMA_DEFAULT_MODEL: str = os.environ.get('OLLAMA_DEFAULT_MODEL', 'qwen3:1.7b')
+
+    if MODEL_TYPE.lower() == 'ollama':
+        client_type: str = "ollama"
+        model_id: str = OLLAMA_DEFAULT_MODEL
+    elif MODEL_TYPE.lower() == 'databricks':
+        client_type: str = "databricks"
+        model_id: str = DATABRICKS_DEFAULT_MODEL
+    else:
+        raise ValueError(f"Unsupported MODEL_TYPE: {MODEL_TYPE}. Supported types are 'ollama' and 'databricks'.")
+
+
+    @property
+    def AGENT_CONFIGS(self) -> dict:
+        return {
+            "brain": {
+                "primary": {
+                    "client_type": self.client_type,
+                    "model_id": self.model_id,
+                    "temperature": 0.1,
+                    "max_tokens": 30000
+                },
+                "system_prompt_path": "app/system_prompt/brain/brain.md"
+            },
+            "data_expert": {
+                "primary": {
+                    "client_type": self.client_type,
+                    "model_id": self.model_id,
+                    "temperature": 0.1,
+                    "max_tokens": 5000
+                },
+                "system_prompt_path": "app/system_prompt/data/data.md"
+            },
+            "metadata": {
+                "primary": {
+                    "client_type": self.client_type,
+                    "model_id": self.model_id,
+                    "temperature": 0.1,
+                    "max_tokens": 5000
+                },
+                "system_prompt_path": "app/system_prompt/metadata/metadata.md"
+            }
+        }
     
     @classmethod
     def get_databricks_config(cls) -> Dict[str, Any]:

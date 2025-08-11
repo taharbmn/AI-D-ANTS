@@ -7,15 +7,12 @@ class ChatMessage(BaseModel):
     content: str = Field(..., description="Message content")
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., description="User message")
-    conversation_id: str = Field(..., description="ID of the conversation to fetch message history from")
+    message: ChatMessage = Field(..., description="User message to the chat endpoint")
+    messages_historical: Optional[List[ChatMessage]] = Field(
+        None,
+        description="List of historical messages for context"
+    )
 
-class ChatResponse(BaseModel):
-    role: str = Field(..., description="Response role (assistant)")
-    content: str = Field(..., description="Response content")
-    model: Optional[str] = Field(None, description="Model used for generation")
-    usage: Optional[Dict[str, Any]] = Field(None, description="Token usage information")
-    stop_reason: Optional[str] = Field(None, description="Reason for stopping generation")
 
 
 class MetaDataRequest(BaseModel):
