@@ -52,9 +52,9 @@ class Config:
                     "client_type": self.client_type,
                     "model_id": self.model_id,
                     "temperature": 0.1,
-                    "max_tokens": 30000
+                    "max_tokens": 5000
                 },
-                "system_prompt_path": "app/system_prompt/brain/brain.md"
+                "system_prompt_path": "app/system_prompt/brain.md"
             },
             "data_expert": {
                 "primary": {
@@ -63,7 +63,7 @@ class Config:
                     "temperature": 0.1,
                     "max_tokens": 5000
                 },
-                "system_prompt_path": "app/system_prompt/data/data.md"
+                "system_prompt_path": "app/system_prompt/data_eng.md"
             },
             "metadata": {
                 "primary": {
@@ -72,7 +72,7 @@ class Config:
                     "temperature": 0.1,
                     "max_tokens": 5000
                 },
-                "system_prompt_path": "app/system_prompt/metadata/metadata.md"
+                "system_prompt_path": "app/system_prompt/metadata.md"
             }
         }
     
@@ -128,3 +128,63 @@ class Config:
 
 # Create a global config instance
 config = Config()
+
+def initialize_config() -> Config:
+    """
+    Initialize and return the global configuration instance.
+    
+    Returns:
+        Config: The initialized configuration instance
+    """
+    global config
+    return config
+
+def initialize_cache_client() -> Dict[str, Any]:
+    """
+    Initialize and return a client cache.
+    
+    Returns:
+        Dictionary with initialized clients
+    """
+    global client_cache
+    client_cache = {
+        'databricks': None,
+        'ollama': None
+    }
+    
+    if config.client_type == 'databricks':
+        if config.validate_databricks_config():
+            from app.chatproxy.dbx_client import DatabricksModel
+            client_cache['databricks'] = DatabricksModel(
+                model_name=config.model_id,
+                base_url=config.DATABRICKS_BASE_URL
+            )
+        else:
+            raise ValueError("Invalid Databricks configuration")
+    
+    elif config.client_type == 'ollama':
+        from app.chatproxy.ollama_client import OllamaClient
+        client_cache['ollama'] = OllamaClient(model_name=config.model_id)
+    
+    return client_cache
+
+def load_system_prompts() -> dict[str, str]:
+    """Load all system prompts into memory at startup"""
+    global system_prompts
+    import logging
+    logger = logging.getLogger(__name__)
+    system_prompts = {}
+     
+    for agent_name, agent_config in config.AGENT_CONFIGS.items():
+         prompt_path = agent_config.get("system_prompt_path")
+         if prompt_path:
+            try:
+                with open(prompt_path, "r", encoding="utf-8") as f:
+                    logger.info(f"Loaded system prompt for agent '{agent_name}' from {prompt_path}")
+                    system_prompts[agent_name] = f.read()
+            except FileNotFoundError:
+                raise RuntimeError(f"System prompt file not found for agent '{agent_name}': {prompt_path}")
+            except IOError as e:
+                raise RuntimeError(f"Error reading system prompt for agent '{agent_name}': {e}")
+    
+    return system_prompts

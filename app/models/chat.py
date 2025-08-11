@@ -12,7 +12,10 @@ class ChatRequest(BaseModel):
         None,
         description="List of historical messages for context"
     )
-
+    available_datasets: Optional[List[str]] = Field(
+        None,
+        description="List of available datasets for the chat"
+    )
 
 
 class MetaDataRequest(BaseModel):

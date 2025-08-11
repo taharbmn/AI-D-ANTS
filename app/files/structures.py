@@ -21,7 +21,7 @@ from app.files.files         import FileReader
 from app.models.chat         import MetaDataRequest
 from app.endpoints.metadata  import get_metadata
 from app.validators.metadata import MetadataValidator, DescriptionValidator
-from app.chatproxy.dbx_model import DatabricksModel
+from app.chatproxy.dbx_client import DatabricksModel
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

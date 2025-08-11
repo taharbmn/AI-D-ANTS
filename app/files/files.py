@@ -35,7 +35,7 @@ class FileReader:
         if str(file_path).strip().lower().startswith("s3://"):
             self._schema    = "s3"
             self._s3_client = global_s3_client
-        elif str(file_path).strip().lower().startswith("local-data://"):
+        elif str(file_path).strip().lower().startswith("/"):
             self._schema = "local-data"
         else:
             raise ValueError("Invalid file path. Must start with 's3://' or 'local-data://'.")

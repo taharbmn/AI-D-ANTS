@@ -7,7 +7,7 @@ baisstools.insert_syspath(__file__, matcher = [r"^baiss_.*$"])
 import logging
 import time
 from typing import List, Dict, Any
-from baiss_chatproxy.base_client import BaseClient
+from app.chatproxy.base_client import BaseClient
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class OllamaClient(BaseClient):
 	Provides offline AI capabilities using locally hosted models.
 	"""
 	
-	def __init__(self, model_name: str = "Qwen3-1.7B-Q8_0.gguf", host: str = None):
+	def __init__(self, model_name: str = None, host: str = None):
 		"""
 		Initialize the LocalClient with a model name and optional host.
 		
@@ -32,6 +32,7 @@ class OllamaClient(BaseClient):
 			host (str): Ollama server host (default: localhost:11434)
 		"""
 		super().__init__()
+		
 		self._model_name = model_name
 		self._host = host or "http://localhost:11434"
 		
@@ -97,7 +98,7 @@ class OllamaClient(BaseClient):
 				stream=False,
 				options=options,
 				think=False,
-				keep_alive=kwargs.get("keep_alive", "10m")  # Changed from True to "10m" to keep models alive longer
+				keep_alive=kwargs.get("keep_alive", "30m")  # Changed from True to "30m" to keep models alive longer
 			)
 			
 			inference_time = time.time() - start_time

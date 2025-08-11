@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 from app.models.chat import (
     MetaDataRequest
 )
-from app.chatproxy.dbx_model import DatabricksModel
+from app.chatproxy.dbx_client import DatabricksModel
 from dotenv import load_dotenv
 import logging
 import json
