@@ -8,7 +8,14 @@ services:
     volumes:
       - ./app:/app
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/chat_app
+      - DATABASE_URL=${DOCKER_DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - DEBUG=${DEBUG}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    env_file:
+      - .env
     depends_on:
       - db
 
@@ -18,9 +25,11 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: chat_app
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
