@@ -1,0 +1,386 @@
+import os
+import sys
+
+
+sys.path.insert(0, 
+	os.path.dirname(
+		os.path.dirname(
+			os.path.dirname(
+				os.path.abspath(__file__)
+			)
+		)
+	)
+)
+from typing import List, Dict, Any, Optional
+import re
+import time
+import json
+import logging
+from fastapi import APIRouter
+from dotenv import load_dotenv
+from fastapi.responses import JSONResponse
+
+
+from app.files.structures import TreeStructure
+from app.models.chat import ChatRequest, DataRequest, AnalyzeRequest, MetaDataRequest
+from app.core.config import system_prompts, client_cache
+from app.endpoints.metadata import get_file_metadata
+from app.sandbox.execute_code import execute_python_code
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+load_dotenv()
+
+@router.post("/chat")
+async def chat_endpoint(request: ChatRequest):
+    
+
+    try: 
+        logging.info("new message")
+
+        available_datasets = []
+        if request.available_datasets and len(request.available_datasets) > 0:
+            for dataset in request.available_datasets:
+                available_datasets.append({
+                    "columns": dataset.get("colomns", ""),
+                    "description": dataset.get("description"),
+                    "path": dataset.get("path"),
+                    "title": dataset.get("title")
+                })
+        else:
+            available_datasets.append({"empty": True, "message": "No available datasets found."})
+        
+        brain_system_prompts = system_prompts.get("brain")
+
+        messages = []
+
+        # Add historical messages if they exist
+        if request.messages_historical:
+            for msg in request.messages_historical:
+                messages.append({
+                    "role": msg.role,
+                    "content": [{"text": msg.content}]
+                })
+
+        # Add the current message
+        messages.append({
+            "role": request.message.role,
+            "content": [{"text": request.message.content}]
+        })
+        client = client_cache.get("ollama")
+
+        try:
+            response = await client.send(
+                messages=messages,
+                system_prompt=brain_system_prompts,
+                temperature=0.1,
+                max_tokens=5000
+            )
+
+            ai_messages = response["response"].get("messages")
+            last_ai_message = ai_messages[-1]
+        
+            return {
+            "status": 200,
+            "success": True,
+            "response": {"messages": [last_ai_message]},
+            "error": "",
+            "stop_reason": "end_turn"
+            }
+        except Exception as e:
+            logger.error(f"Error processing chat request: {str(e)}")
+            return {
+                "status": 500,
+                "success": False,
+                "response": {},
+                "error": str(e),
+                "stop_reason": "error"
+            }
+    except Exception as e:
+        logging.error(f"Error processing chat request: {str(e)}")
+        return {
+            "status": 500,
+            "success": False,
+            "response": {},
+            "error": str(e),
+            "stop_reason": "error"
+        }
+
+
+
+def extract_python_code(ai_response: str) -> str:
+    """Extract Python code from AI response"""
+    # Look for code blocks
+    code_pattern = r'```python\n(.*?)```'
+    matches = re.findall(code_pattern, ai_response, re.DOTALL)
+    
+    if matches:
+        return matches[0].strip()
+    
+    # If no code blocks found, return the entire response as it might be raw code
+    return ai_response.strip()
+
+@router.post("/analyze")
+async def analyze(request: AnalyzeRequest):
+    global_structure   = {}
+    global_destination = request.destination
+    local_structures   = []
+    for path, path_config in request.sources.items():
+        path_destination = path_config.get("destination")
+        if isinstance(path_destination, str) and path_destination.strip():
+            path_destination = path_destination.strip()
+            path_structure   = {}
+            TreeStructure.generate(
+                path   = path,
+                result = path_structure
+            )
+            # init metadata for local structure
+            TreeStructure.init_metadata(
+                structure = path_structure
+            )
+            # update metadata for local structure (using AI, meatadata endpoint)
+            path_structure = await TreeStructure.update_metadata(
+                structure = path_structure
+            )
+            # save local structure permanently
+            TreeStructure.save(
+                structure   = path_structure,
+                destination = path_destination
+            )
+            local_structures.append(path_structure)
+        else:
+            TreeStructure.generate(
+                path   = path,
+                result = global_structure
+            )
+    # init metadata for global structure
+    TreeStructure.init_metadata(
+        global_structure
+    )
+    # update metadata for global structure (using AI, metadata endpoint)
+    global_structure = await TreeStructure.update_metadata(
+        structure = global_structure
+    )
+    # save global structure permanently
+    TreeStructure.save(
+        structure   = global_structure,
+        destination = global_destination
+    )
+    # just for API:
+    for local_structure in local_structures:
+        for key, val in local_structure:
+            global_structure[key] = val
+    return JSONResponse(
+        status_code = 200,
+        content = {
+            "response"   : global_structure,
+            "success"    : True,
+            "status"     : 200
+        }
+    )
+
+@router.post("/data_expert")
+async def create_conversation_with_data_expert(request: DataRequest):
+    """
+    Generate and execute Python code to analyze data using AI.
+    
+    Args:
+        request (DataRequest): Contains data_source_file (S3 path) and user message
+        
+    Returns:
+        JSONResponse: Analysis results from executed Python code
+    """
+    start_time = time.time()
+    
+    # Validate data source file
+    data_source_file = str(request.data_source_file).strip()
+    if not data_source_file:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "success": False,
+                "response": {},
+                "error": "Data source file is required",
+                "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                "stop_reason": "error"
+            }
+        )
+    
+    try:
+        # Get file metadata to understand the schema
+        logger.info(f"Getting metadata for file: {data_source_file}")
+        metadata_result = get_file_metadata(data_source_file)
+        
+        if not metadata_result["status"]:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "success": False,
+                    "response": {},
+                    "error": f"Failed to get file metadata: {metadata_result['error']}",
+                    "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                    "stop_reason": "error"
+                }
+            )
+        
+        # Prepare schema information for the system prompt
+        schema_info = metadata_result.get("metadata")
+        # log the schema info full
+        logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
+        
+        # Get the system prompt with variables substituted
+        system_prompt = system_prompts.get("data_eng", "")
+        if not system_prompt:
+            raise ValueError("Data engineering system prompt not found in configuration")
+
+        system_prompt = system_prompt.replace("${os.environ[\"NUMBER_OF_PYTHON_SCRIPTS\"]}", os.environ["NUMBER_OF_PYTHON_SCRIPTS"])
+        system_prompt = system_prompt.replace("${variables.data_expert.settings.input_schema}", schema_info)
+        system_prompt = system_prompt.replace("${variables.data_expert.settings.default_data_source_file}", data_source_file)
+        
+        # Prepare messages for AI
+        user_content = request.message.content
+        if isinstance(user_content, list):
+            # If content is already a list, use it as is
+            content_list = user_content
+        else:
+            # If content is a string, wrap it in the expected format
+            content_list = [{"text": user_content}]
+        
+        messages = [
+            {
+                "role": request.message.role,
+                "content": content_list
+            }
+        ]
+        
+        
+        # Initialize Databricks AI client
+        client = client_cache.get("ollama")
+        
+        # Set timeout and retry configuration
+        DATA_EXPERT_DURATION = int(os.environ.get("DATA_EXPERT_DURATION", "60"))
+        max_fails_count = 3
+        fails_count = 0
+        stop_time = time.time() + DATA_EXPERT_DURATION
+        
+        while (time.time() < stop_time) and (fails_count < max_fails_count):
+            try:
+                logger.info(f"=== AI REQUEST ATTEMPT {fails_count + 1} ===")
+                
+                # Get AI response
+                response = await client.send(
+                    messages=messages,
+                    system_prompt=system_prompt,
+                    temperature=0.1,
+                    max_tokens=5000
+                )
+                
+                logger.info(f"AI Response received: {json.dumps(response, indent=2)}")
+                print(f"=== AI RESPONSE ===\n{json.dumps(response, indent=2)}")
+                
+                if response["error"]:
+                    fails_count += 1
+                    logger.error(f"Error in AI response: {response.get('message', 'Unknown error')}")
+                    time.sleep(1)
+                    continue
+                
+                # Extract Python code from AI response
+                ai_text = response["content"]
+                logger.info(f"=== AI GENERATED TEXT ===")
+                logger.info(f"Raw AI response content:\n{ai_text}")
+                print(f"=== AI GENERATED TEXT ===\n{ai_text}")
+                
+                python_code = extract_python_code(ai_text)
+                logger.info(f"=== EXTRACTED PYTHON CODE ===")
+                logger.info(f"Extracted code:\n{python_code}")
+                print(f"=== EXTRACTED PYTHON CODE ===\n{python_code}")
+                
+                if not python_code:
+                    fails_count += 1
+                    logger.error("No Python code found in AI response")
+                    continue
+                
+                logger.info(f"=== EXECUTING PYTHON CODE ===")
+                
+                # Execute the generated Python code
+                execution_result = execute_python_code(
+                    code=python_code,
+                    datasourcefile=data_source_file
+                )
+                
+                logger.info(f"=== CODE EXECUTION RESULT ===")
+                logger.info(f"Execution success: {execution_result['success']}")
+                logger.info(f"Execution time: {execution_result.get('execution_time', 'unknown')}")
+                if execution_result["success"]:
+                    logger.info(f"Execution stdout:\n{execution_result['stdout']}")
+                else:
+                    logger.error(f"Execution error: {execution_result.get('error', 'Unknown error')}")
+                    if execution_result.get('stderr'):
+                        logger.error(f"Execution stderr: {execution_result['stderr']}")
+                
+                if execution_result["success"]:
+                    logger.info("=== SUCCESSFUL RESPONSE ===")
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "status": 200,
+                            "success": True,
+                            "response": {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": [
+                                        {
+                                            "text": execution_result["stdout"]
+                                        }
+                                    ]
+                                }
+                            },
+                            "error": "",
+                            "stop_reason": "end_turn",
+                            "execution_time": execution_result.get("execution_time", "unknown")
+                        }
+                    )
+                else:
+                    fails_count += 1
+                    logger.error(f"Code execution failed: {execution_result.get('error', 'Unknown error')}")
+                    continue
+                    
+            except Exception as e:
+                fails_count += 1
+                logger.error(f"Error in data expert processing: {str(e)}")
+                continue
+        
+        # If we reach here, all attempts failed
+        if time.time() >= stop_time:
+            error_msg = f"Timeout after {DATA_EXPERT_DURATION} seconds"
+        else:
+            error_msg = f"Failed to process request after {max_fails_count} attempts"
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "success": False,
+                "response": {},
+                "error": error_msg,
+                "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                "stop_reason": "error"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in data_expert conversation: {str(e)}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "success": False,
+                "response": {},
+                "error": str(e),
+                "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                "stop_reason": "error"
+            }
+        )
