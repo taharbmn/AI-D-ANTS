@@ -10,7 +10,6 @@ import {
   Loading03Icon,
   DatabaseIcon,
   SearchIcon,
-  RefreshIcon,
   DownloadIcon,
   EyeIcon
 } from "@hugeicons/core-free-icons";
@@ -20,6 +19,29 @@ import JsonView from '@uiw/react-json-view';
 interface Bucket {
   name: string;
   files: string[];
+}
+
+interface JsonData {
+  analytics: {
+    period: string;
+    metrics: {
+      total_revenue: number;
+      growth_rate: number;
+      customer_acquisition: number;
+      churn_rate: number;
+    };
+    top_performing_products: Array<{
+      id: string;
+      name: string;
+      revenue: number;
+      units_sold: number;
+    }>;
+    regional_breakdown: {
+      north_america: { revenue: number; percentage: number };
+      europe: { revenue: number; percentage: number };
+      asia_pacific: { revenue: number; percentage: number };
+    };
+  };
 }
 
 interface DataPanelProps {
@@ -33,7 +55,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [jsonData, setJsonData] = useState<any>(null);
+  const [jsonData, setJsonData] = useState<JsonData | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
@@ -53,7 +75,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     }
   ];
 
-  const mockJsonData = {
+  const mockJsonData: JsonData = {
     analytics: {
       period: "Q3 2024",
       metrics: {
@@ -103,7 +125,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     } else {
       setSelectedFile(fileName);
       setIsLoadingFile(true);
-      // Simulate loading file content
       setTimeout(() => {
         setJsonData(mockJsonData);
         setIsLoadingFile(false);
@@ -111,7 +132,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     }
   };
 
-  // Filter buckets and files based on search term
   const filteredBuckets = buckets.filter(bucket => 
     bucket.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     bucket.files.some(file => file.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -130,22 +150,20 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
         <HugeiconsIcon icon={DatabaseIcon} className="text-blue-400" size={24} />
         <h2 className="text-xl font-bold text-white">Data Explorer</h2>
       </div>
-
-      {/* S3 URL Input */}
-      <div className="space-y-3">
-        <label className="text-sm font-medium text-gray-300">S3 Bucket URL</label>
-        <div className="flex gap-2">
+    <div className="space-y-3">
+        <label className="text-sm font-medium text-gray-300 inline-block">S3 Bucket URL</label>
+        <div className="flex gap-3">
           <input
             type="text"
             value={s3Url}
             onChange={(e) => setS3Url(e.target.value)}
             placeholder="s3://your-bucket-name"
-            className="flex-1 bg-neutral-900 border border-gray-600 rounded-xl px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
+            className="flex-1 bg-neutral-900 border border-gray-600 rounded-full px-6 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
           />
           <button
             onClick={handlePullBuckets}
             disabled={isLoading || !s3Url.trim()}
-            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2 min-w-[80px]"
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-3 rounded-full font-medium transition-colors flex items-center gap-2 min-w-[100px]"
           >
             {isLoading ? (
               <>
@@ -162,14 +180,13 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
         </div>
       </div>
 
-      {/* Search Bar */}
       {buckets.length > 0 && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Search Files & Buckets</label>
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-gray-300 inline-block">Search Files & Buckets</label>
           <div className="relative">
             <HugeiconsIcon 
               icon={SearchIcon} 
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" 
               size={16} 
             />
             <input
@@ -177,7 +194,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search buckets and files..."
-              className="w-full bg-neutral-900 border border-gray-600 rounded-xl pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
+              className="w-full bg-neutral-900 border border-gray-600 rounded-full pl-12 pr-6 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
             />
           </div>
         </div>
@@ -186,10 +203,10 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
       {/* Buckets List */}
       <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar">
         {buckets.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-300">Available Buckets</h3>
-              <span className="text-xs text-gray-500 bg-neutral-700 px-2 py-1 rounded-full">
+              <span className="text-xs text-gray-500 bg-neutral-700 px-3 py-2 rounded-full font-medium">
                 {filteredBuckets.length} bucket{filteredBuckets.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -201,10 +218,10 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
               </div>
             ) : (
               filteredBuckets.map((bucket) => (
-                <div key={bucket.name} className="space-y-1">
+                <div key={bucket.name} className="space-y-2">
                   <div
                     onClick={() => handleBucketClick(bucket.name)}
-                    className="flex items-center justify-between p-3 bg-neutral-700 hover:bg-neutral-600 rounded-lg cursor-pointer transition-all duration-200 group"
+                    className="flex items-center justify-between p-4 bg-neutral-700 hover:bg-neutral-600 rounded-full cursor-pointer transition-all duration-200 group"
                   >
                     <div className="flex items-center gap-3">
                       <HugeiconsIcon 
@@ -213,11 +230,11 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                         size={20} 
                       />
                       <span className="text-white font-medium">{bucket.name}</span>
-                      <span className="text-xs text-gray-400 bg-neutral-600 px-2 py-1 rounded-full">
+                      <span className="text-xs text-gray-400 bg-neutral-600 px-3 py-1.5 rounded-full">
                         {bucket.files.length} file{bucket.files.length !== 1 ? 's' : ''}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       {onBucketSelect && (
                         <button
                           onClick={(e) => {
@@ -225,7 +242,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                             onBucketSelect(bucket);
                           }}
                           disabled={selectedBuckets.some(selected => selected.name === bucket.name)}
-                          className={`px-3 py-1 text-xs rounded-full transition-all ${
+                          className={`px-4 py-2 text-xs rounded-full transition-all font-medium ${
                             selectedBuckets.some(selected => selected.name === bucket.name)
                               ? 'bg-green-600 text-white cursor-not-allowed'
                               : 'bg-blue-500 hover:bg-blue-600 text-white cursor-pointer'
@@ -243,20 +260,19 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                   </div>
 
                   <div
-                    className={`ml-4 overflow-hidden transition-all duration-500 ease-in-out ${
+                    className={`ml-6 overflow-hidden transition-all duration-500 ease-in-out ${
                       expandedBucket === bucket.name ? 'opacity-100' : 'max-h-0 opacity-0'
                     }`}
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {bucket.files.map((file, index) => (
-                        <div key={file} className="space-y-2">
-                          {/* File Item */}
-                          <div
+                        <div key={file} className="space-y-3">
+                         <div
                             onClick={() => handleFileClick(file)}
-                            className={`p-3 text-sm cursor-pointer rounded-md transition-all duration-300 group flex items-center gap-3 ${
+                            className={`p-4 text-sm cursor-pointer rounded-full w-[90%] transition-all duration-300 group flex items-center gap-3 ${
                               selectedFile === file
                                 ? 'bg-blue-600 text-white shadow-lg'
-                                : 'text-gray-300 hover:bg-neutral-600 hover:text-white'
+                                : 'text-gray-300 hover:bg-neutral-600 hover:text-white bg-neutral-800/50'
                             } transform hover:translate-x-1`}
                             style={{
                               transitionDelay: expandedBucket === bucket.name ? `${index * 50}ms` : '0ms'
@@ -279,8 +295,8 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
 
                           {/* JSON Data Display - appears directly below the clicked file */}
                           {selectedFile === file && (
-                            <div className="ml-4 p-4 bg-black/40 rounded-lg animate-fadeIn border border-gray-700">
-                              <div className="flex items-center justify-between mb-3">
+                            <div className="ml-6 p-5 bg-black/40 rounded-3xl animate-fadeIn border border-gray-700">
+                              <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-2">
                                   <HugeiconsIcon icon={FileIcon} className="text-green-400" size={16} />
                                   <span className="text-sm font-medium text-gray-300">File Content</span>
@@ -290,7 +306,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                                     e.stopPropagation();
                                     // Add download functionality here
                                   }}
-                                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+                                  className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-200 transition-colors bg-neutral-700 hover:bg-neutral-600 px-3 py-2 rounded-full"
                                 >
                                   <HugeiconsIcon icon={DownloadIcon} size={12} />
                                   Export
