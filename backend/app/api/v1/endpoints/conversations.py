@@ -33,6 +33,6 @@ def update_existing_conversation(conversation_id: UUID, title: str, db: Session 
 @router.delete("/{conversation_id}")
 def delete_existing_conversation(conversation_id: UUID, db: Session = Depends(get_db)):
     result = delete_conversation(db=db, conversation_id=conversation_id)
-    if not result["success"]:
-        raise HTTPException(status_code=404, detail=result["message"])
-    return result
+    if not result:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"message": "Conversation deleted successfully"}

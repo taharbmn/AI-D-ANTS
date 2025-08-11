@@ -5,7 +5,7 @@ from app.schemas.message import MessageCreate, Message, MessageCreateWithConvers
 from app.schemas.conversation import ConversationCreate, Conversation
 from app.crud.message import create_message, get_messages_by_conversation, get_message, update_message, delete_message
 from app.crud.conversation import create_conversation, get_conversation
-from app.api.deps import get_db
+from app.core.database import get_db
 
 router = APIRouter()
 
@@ -25,6 +25,8 @@ def create_conversation_with_first_message(
     # Check if conversation_id is provided and if the conversation exists
     if message_data.conversation_id:
         existing_conversation = get_conversation(db=db, conversation_id=message_data.conversation_id)
+        if not existing_conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
     if existing_conversation:
         # Use existing conversation

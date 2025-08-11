@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app
+      - .:/app
     environment:
       - DATABASE_URL=${DOCKER_DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
