@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from uuid import UUID
+from typing import List
 from app.models.message import Message
 from app.schemas.message import MessageCreate
 
@@ -15,6 +16,18 @@ def get_message(db: Session, message_id: UUID) -> Message:
 
 def get_messages_by_conversation(db: Session, conversation_id: UUID):
     return db.query(Message).filter(Message.conversation_id == conversation_id).all()
+
+def get_last_messages(db: Session, conversation_id: UUID, count: int = 10) -> List[Message]:
+    """
+    Get the last N messages from a specific conversation, ordered by timestamp descending (most recent first),
+    then sorted chronologically for proper conversation flow.
+    """
+    messages = db.query(Message).filter(
+        Message.conversation_id == conversation_id
+    ).order_by(Message.created_at.desc()).limit(count).all()
+
+    # Return messages sorted chronologically (oldest first) for proper conversation flow
+    return sorted(messages, key=lambda m: m.created_at)
 
 def update_message(db: Session, message_id: UUID, content: str) -> Message:
     db_message = db.query(Message).filter(Message.id == message_id).first()
