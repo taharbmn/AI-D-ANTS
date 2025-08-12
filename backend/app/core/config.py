@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Application Configuration
     DEBUG: bool = True
-    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
+    ALLOWED_HOSTS: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     class Config:
         env_file = ".env"
