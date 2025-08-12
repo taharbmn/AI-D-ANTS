@@ -1,7 +1,6 @@
 import os
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
-from pydantic_settings import BaseSettings
 import pathlib
 
 # Get the root directory of the project (parent of app directory)
@@ -12,42 +11,27 @@ env_path = root_dir / ".env"
 load_dotenv(dotenv_path=env_path)
 
 
-class Settings(BaseSettings):
-    # Application Database (for local development)
-    DATABASE_URL: str
-
-    # Docker Database (for container communication)
-    DOCKER_DATABASE_URL: Optional[str] = None
-
-    # PostgreSQL specific variables (used by Docker Compose)
-    POSTGRES_DB: Optional[str] = None
-    POSTGRES_USER: Optional[str] = None
-    POSTGRES_PASSWORD: Optional[str] = None
-
-    # Security Configuration
-    SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    # ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-
-    # Application Configuration
-    DEBUG: bool = True
-    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = 'utf-8'
-        # Allow extra fields to avoid validation errors
-        extra = "allow"
-
-settings = Settings()
-
-
-
 class Config:
     """
     Application configuration management.
     Handles environment variables and default settings.
     """
+
+    # Database Configuration
+    DATABASE_URL: str = os.environ.get('DATABASE_URL', '')
+    DOCKER_DATABASE_URL: Optional[str] = os.environ.get('DOCKER_DATABASE_URL')
+
+    # PostgreSQL specific variables (used by Docker Compose)
+    POSTGRES_DB: Optional[str] = os.environ.get('POSTGRES_DB')
+    POSTGRES_USER: Optional[str] = os.environ.get('POSTGRES_USER')
+    POSTGRES_PASSWORD: Optional[str] = os.environ.get('POSTGRES_PASSWORD')
+
+    # Security Configuration
+    SECRET_KEY: str = os.environ.get('SECRET_KEY', '')
+    ALGORITHM: str = os.environ.get('ALGORITHM', 'HS256')
+
+    # Application Configuration
+    ALLOWED_HOSTS: str = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 
     # Databricks Configuration
     DATABRICKS_TOKEN: str = os.environ.get('DATABRICKS_TOKEN', '')
