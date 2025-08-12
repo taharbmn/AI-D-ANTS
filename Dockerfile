@@ -2,11 +2,13 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install dependencies including curl and Rust for pydantic-core
+# Install dependencies including curl, Rust for pydantic-core, and PostgreSQL client
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     pkg-config \
+    postgresql-client \
+    netcat-traditional \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -22,7 +24,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire application directory
-COPY .. .
+COPY . .
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs && \
@@ -36,5 +38,14 @@ ENV PYTHONIOENCODING=utf-8
 # Expose the port
 EXPOSE 8080
 
-# Run with uvicorn server - logs will go to STDOUT for CloudWatch
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "info"]
+# Copy and set permissions for startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# commande to alwase runed comme while 1
+# CMD ["sh", "-c", "while :; do sleep 6; done"]
+
+# Run with startup script that handles migrations and server startup
+CMD ["/start.sh"]
+
+

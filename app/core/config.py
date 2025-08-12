@@ -1,32 +1,71 @@
 import os
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
+import pathlib
 
-load_dotenv()
+# Get the root directory of the project (parent of app directory)
+root_dir = pathlib.Path(__file__).parent.parent.parent
+env_path = root_dir / ".env"
+
+# Load environment variables from the .env file
+load_dotenv(dotenv_path=env_path)
+
+
+class Settings(BaseSettings):
+    # Application Database (for local development)
+    DATABASE_URL: str
+
+    # Docker Database (for container communication)
+    DOCKER_DATABASE_URL: Optional[str] = None
+
+    # PostgreSQL specific variables (used by Docker Compose)
+    POSTGRES_DB: Optional[str] = None
+    POSTGRES_USER: Optional[str] = None
+    POSTGRES_PASSWORD: Optional[str] = None
+
+    # Security Configuration
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    # ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # Application Configuration
+    DEBUG: bool = True
+    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = 'utf-8'
+        # Allow extra fields to avoid validation errors
+        extra = "allow"
+
+settings = Settings()
+
+
 
 class Config:
     """
     Application configuration management.
     Handles environment variables and default settings.
     """
-    
+
     # Databricks Configuration
     DATABRICKS_TOKEN: str = os.environ.get('DATABRICKS_TOKEN', '')
     DATABRICKS_BASE_URL: str = os.environ.get('DATABRICKS_BASE_URL', '')
     DATABRICKS_DEFAULT_MODEL: str = os.environ.get(
-        'DATABRICKS_DEFAULT_MODEL', 
+        'DATABRICKS_DEFAULT_MODEL',
         'databricks-meta-llama-3-3-70b-instruct'
     )
-    
+
     # AWS Configuration (for S3 operations)
     AWS_REGION: str = os.environ.get('AWS_REGION', '')
     AWS_ACCESS_KEY_ID: str = os.environ.get('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY: str = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
-    
+
     # Application Settings
     LOG_LEVEL: str = os.environ.get('LOG_LEVEL', 'INFO')
     DEBUG: bool = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
-    
+
     # API Settings
     API_TIMEOUT: int = int(os.environ.get('API_TIMEOUT', '30'))
     MAX_RETRIES: int = int(os.environ.get('MAX_RETRIES', '3'))
@@ -75,12 +114,12 @@ class Config:
                 "system_prompt_path": "app/system_prompt/metadata.md"
             }
         }
-    
+
     @classmethod
     def get_databricks_config(cls) -> Dict[str, Any]:
         """
         Get Databricks-specific configuration.
-        
+
         Returns:
             Dictionary with Databricks configuration
         """
@@ -91,12 +130,12 @@ class Config:
             'timeout': cls.API_TIMEOUT,
             'max_retries': cls.MAX_RETRIES
         }
-    
+
     @classmethod
     def get_aws_config(cls) -> Dict[str, Any]:
         """
         Get AWS-specific configuration.
-        
+
         Returns:
             Dictionary with AWS configuration
         """
@@ -105,22 +144,22 @@ class Config:
             'access_key_id': cls.AWS_ACCESS_KEY_ID,
             'secret_access_key': cls.AWS_SECRET_ACCESS_KEY
         }
-    
+
     @classmethod
     def validate_databricks_config(cls) -> bool:
         """
         Validate that required Databricks configuration is present.
-        
+
         Returns:
             True if configuration is valid, False otherwise
         """
         return bool(cls.DATABRICKS_TOKEN and cls.DATABRICKS_BASE_URL)
-    
+
     @classmethod
     def validate_aws_config(cls) -> bool:
         """
         Validate that required AWS configuration is present.
-        
+
         Returns:
             True if configuration is valid, False otherwise
         """
@@ -138,7 +177,7 @@ client_cache: Dict[str, Any] = {}
 def initialize_config() -> Config:
     """
     Initialize and return the global configuration instance.
-    
+
     Returns:
         Config: The initialized configuration instance
     """
@@ -151,7 +190,7 @@ def load_system_prompts() -> dict[str, str]:
     import logging
     logger = logging.getLogger(__name__)
     system_prompts.clear()  # Clear existing prompts
-     
+
     for agent_name, agent_config in config.AGENT_CONFIGS.items():
          prompt_path = agent_config.get("system_prompt_path")
          if prompt_path:
@@ -163,29 +202,29 @@ def load_system_prompts() -> dict[str, str]:
                 raise RuntimeError(f"System prompt file not found for agent '{agent_name}': {prompt_path}")
             except IOError as e:
                 raise RuntimeError(f"Error reading system prompt for agent '{agent_name}': {e}")
-    
+
     return system_prompts
 
 def initialize_cache_client() -> Dict[str, Any]:
     """
     Initialize and return a client cache.
-    
+
     Returns:
         Dictionary with initialized clients
     """
     global client_cache
     import logging
     logger = logging.getLogger(__name__)
-    
+
     # Clear existing cache
     client_cache.clear()
     client_cache.update({
         'databricks': None,
         'ollama': None
     })
-    
+
     logger.info(f"Initializing client cache with client_type: {config.client_type}")
-    
+
     if config.client_type == 'databricks':
         if config.validate_databricks_config():
             from app.chatproxy.dbx_client import DatabricksModel
@@ -196,11 +235,11 @@ def initialize_cache_client() -> Dict[str, Any]:
             logger.info("Databricks client initialized successfully")
         else:
             raise ValueError("Invalid Databricks configuration")
-    
+
     elif config.client_type == 'ollama':
         from app.chatproxy.ollama_client import OllamaClient
         client_cache['ollama'] = OllamaClient(model_name=config.model_id)
         logger.info(f"Ollama client initialized successfully with model: {config.model_id}")
-    
+
     logger.info(f"Client cache initialized: {list(client_cache.keys())}")
     return client_cache

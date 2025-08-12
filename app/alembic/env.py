@@ -6,7 +6,7 @@ from sqlalchemy import pool
 from alembic import context
 
 # Add the parent directory to Python path so we can import the app module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.database import Base
 from app.models.conversation import Conversation
@@ -14,7 +14,21 @@ from app.models.message import Message
 
 config = context.config
 
-fileConfig(config.config_file_name)
+# Set database URL from environment variables
+def get_database_url():
+    db_user = os.getenv('DB_USER', 'user')
+    db_password = os.getenv('DB_PASSWORD', 'password')
+    db_host = os.getenv('DB_HOST', 'db')
+    db_port = os.getenv('DB_PORT', '5432')
+    db_name = os.getenv('DB_NAME', 'chat_app')
+    return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+
+# Override the database URL with environment variables
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# Set the sqlalchemy.url from environment variables
+config.set_main_option('sqlalchemy.url', get_database_url())
 
 target_metadata = Base.metadata
 
