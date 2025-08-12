@@ -17,7 +17,6 @@ from app.endpoints.router import api_router
 from app.core.config import initialize_config, load_system_prompts, initialize_cache_client
 import logging
 import sys
-from api.v1.api import api_routerr
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,7 +73,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
-app.include_router(api_routerr , prefix="/api/v1")
 
 @app.get("/")
 async def root() -> Dict[str, str]:
