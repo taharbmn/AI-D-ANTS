@@ -4,13 +4,10 @@ import { SentIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import DataPanel, { Bucket } from "@/components/dataPanel";
 import { useState } from "react";
-
-interface Message {
-  sender: "user" | "ai";
-  text: string;
-}
+import { useChatContext } from "@/contexts/ChatContext";
 
 export default function Home() {
+  const { messages, sendMessage, loading } = useChatContext();
   const [selectedBuckets, setSelectedBuckets] = useState<Bucket[]>([]);
   const [showDatasetSelector, setShowDatasetSelector] = useState(false);
   const [message, setMessage] = useState("");
@@ -27,90 +24,65 @@ export default function Home() {
     );
   };
 
-  const messages: Message[] = [
-    { sender: "user", text: "Hello, AI! Can you help me with my data?" },
-    {
-      sender: "ai",
-      text: "Of course! Please describe your workflow or upload your dataset.",
-    },
-    { sender: "user", text: "I want to analyze sales anomalies for Q2." },
-    {
-      sender: "ai",
-      text: "Great! I can help you analyze your sales data. Please upload your dataset using the data panel on the left, and I'll provide insights on any anomalies detected.",
-    },
-    { sender: "user", text: "How do I connect to my S3 bucket?" },
-    {
-      sender: "ai",
-      text: "Simply enter your S3 bucket URL in the data panel and click 'Pull'. I'll fetch all available buckets and files for you to explore.",
-    },
-        { sender: "user", text: "Hello, AI! Can you help me with my data?" },
-    {
-      sender: "ai",
-      text: "Of course! Please describe your workflow or upload your dataset.",
-    },
-    { sender: "user", text: "I want to analyze sales anomalies for Q2." },
-    {
-      sender: "ai",
-      text: "Great! I can help you analyze your sales data. Please upload your dataset using the data panel on the left, and I'll provide insights on any anomalies detected.",
-    },
-    { sender: "user", text: "How do I connect to my S3 bucket?" },
-    {
-      sender: "ai",
-      text: "Simply enter your S3 bucket URL in the data panel and click 'Pull'. I'll fetch all available buckets and files for you to explore.",
-    },
-        { sender: "user", text: "How do I connect to my S3 bucket?" },
-    {
-      sender: "ai",
-      text: "Simply enter your S3 bucket URL in the data panel and click 'Pull'. I'll fetch all available buckets and files for you to explore.",
-    },
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
     
-        { sender: "user", text: "How do I connect to my S3 bucket?" },
-    {
-      sender: "ai",
-      text: "Simply enter your S3 bucket URL in the data panel and click 'Pull'. I'll fetch all available buckets and files for you to explore.",
-    },
-    
-        { sender: "user", text: "How do I connect to my S3 bucket?" },
-    {
-      sender: "ai",
-      text: "Simply enter your S3 bucket URL in the data panel and click 'Pull'. I'll fetch all available buckets and files for you to explore.",
-    },
-    
-        { sender: "user", text: "How do I connect to my S3 bucket?" },
-    {
-      sender: "ai",
-      text: "Simply enter your S3 bucket URL in the data panel and click 'Pull'. I'll fetch all available buckets and files for you to explore.",
-    },
-    
-    
-  ];
+    const messageToSend = message;
+    setMessage("");
+    await sendMessage(messageToSend);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
   return (
     <div className="flex gap-6 flex-grow">
       <div className="bg-neutral-800 relative flex-grow rounded-4xl flex flex-col">
         <div className="w-full max-h-[93.5vh] flex flex-col overflow-y-auto custom-scrollbar">
-          <div className="w-full flex flex-col px-24 gap-6 py-4">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex ${
-                  msg.sender === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`px-6 py-4 rounded-3xl text-base max-w-[70%] whitespace-pre-line shadow-md transition-all duration-200
-                    ${
-                      msg.sender === "user"
-                        ? "bg-blue-500 text-white rounded-br-md"
-                        : "bg-white/10 text-white border border-white/10 rounded-bl-md"
-                    }
-                  `}
-                  style={{ wordBreak: "break-word" }}
-                >
-                  {msg.text}
+          <div className="w-full flex flex-col px-24 gap-6 py-4 h-[78vh] overflow-y-scroll">
+            {messages.length === 0 ? (
+              <div className="flex items-center justify-center h-64 text-gray-400">
+                <div className="text-center">
+                  <h2 className="text-xl mb-2">Welcome to D-ANTS</h2>
+                  <p>Start a conversation or select a chat from the history.</p>
                 </div>
               </div>
-            ))}
+            ) : (
+              messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${
+                    msg.sender === "user" ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`px-6 py-4 rounded-3xl text-base max-w-[70%] whitespace-pre-line shadow-md transition-all duration-200
+                      ${
+                        msg.sender === "user"
+                          ? "bg-blue-500 text-white rounded-br-md"
+                          : "bg-white/10 text-white border border-white/10 rounded-bl-md"
+                      }
+                    `}
+                    style={{ wordBreak: "break-word" }}
+                  >
+                    {msg.text}
+                  </div>
+                </div>
+              ))
+            )}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="px-6 py-4 rounded-3xl text-base max-w-[70%] bg-white/10 text-white border border-white/10 rounded-bl-md">
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-pulse">Thinking...</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-center px-6 py-6">
@@ -165,10 +137,16 @@ export default function Home() {
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   placeholder="Ask me anything about your data..."
                   className="resize-none flex-grow h-full bg-transparent text-white placeholder-gray-400 outline-none p-2 rounded-lg"
+                  disabled={loading}
                 />
-                <button className="rounded-full h-11 w-11 ml-3 cursor-pointer bg-blue-500 hover:bg-blue-600 flex items-center justify-center transition-colors">
+                <button 
+                  onClick={handleSendMessage}
+                  disabled={loading || !message.trim()}
+                  className="rounded-full h-11 w-11 ml-3 cursor-pointer bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                >
                   <HugeiconsIcon icon={SentIcon} className="text-white" />
                 </button>
               </div>

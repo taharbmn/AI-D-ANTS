@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import api from "@/lib/api";
 
 const initialPostgreSQLConfig = {
   host: '',
@@ -6,7 +7,6 @@ const initialPostgreSQLConfig = {
   database: '',
   username: '',
   password: '',
-  ssl: true,
 };
 
 const PostgreSQLModal = ({
@@ -28,13 +28,18 @@ const PostgreSQLModal = ({
     setError('');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!config.host || !config.database || !config.username || !config.password) {
       setError('Please fill in all required fields.');
       return;
     }
-    setSaved(true);
-    setError('');
+    try {
+      await api.post('/env/variables', {variables:config});
+      setError('');
+      setSaved(true);
+    } catch (error) {
+      setError('Failed to save settings.');
+    }
   };
 
   const testConnection = () => {
@@ -96,19 +101,6 @@ const PostgreSQLModal = ({
             type="password"
             placeholder="your_password"
           />
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="ssl"
-              name="ssl"
-              checked={config.ssl}
-              onChange={handleChange}
-              className="rounded border border-gray-500 bg-neutral-900 text-blue-500 focus:ring-2 focus:ring-blue-400"
-            />
-            <label htmlFor="ssl" className="text-base text-gray-200 font-medium">
-              Enable SSL
-            </label>
-          </div>
         </div>
         {error && <div className="text-red-400 mt-3 text-sm text-center">{error}</div>}
         {saved && <div className="text-green-400 mt-3 text-sm text-center">Configuration saved successfully!</div>}

@@ -59,7 +59,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
-  // Mock data for demonstration
   const mockBuckets: Bucket[] = [
     {
       name: "sales-data-2024",
@@ -145,7 +144,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
 
   return (
     <div className="w-[530px] bg-neutral-800 rounded-4xl p-6 flex flex-col gap-6 h-full">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <HugeiconsIcon icon={DatabaseIcon} className="text-blue-400" size={24} />
         <h2 className="text-xl font-bold text-white">Data Explorer</h2>
@@ -199,8 +197,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
           </div>
         </div>
       )}
-
-      {/* Buckets List */}
       <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar">
         {buckets.length > 0 && (
           <div className="space-y-3">
@@ -292,8 +288,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                               />
                             )}
                           </div>
-
-                          {/* JSON Data Display - appears directly below the clicked file */}
                           {selectedFile === file && (
                             <div className="ml-6 p-5 bg-black/40 rounded-3xl animate-fadeIn border border-gray-700">
                               <div className="flex items-center justify-between mb-4">
@@ -304,7 +298,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // Add download functionality here
                                   }}
                                   className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-200 transition-colors bg-neutral-700 hover:bg-neutral-600 px-3 py-2 rounded-full"
                                 >
