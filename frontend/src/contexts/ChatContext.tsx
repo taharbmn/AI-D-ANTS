@@ -4,8 +4,10 @@ import React, { createContext, useContext, useState, ReactNode } from "react";
 import api from "@/lib/api";
 
 interface Message {
-  sender: "user" | "ai";
+  id?: number;
+  sender: "user" | "assistant";
   text: string;
+  created_at?: string;
 }
 
 interface ChatContextType {
@@ -46,8 +48,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
       const transformedMessages: Message[] =
         conversation.messages?.map((msg: any) => ({
-          sender: msg.role === "user" ? "user" : "ai",
+          id: msg.id,
+          sender: msg.sender_type === "user" ? "user" : "assistant",
           text: msg.content,
+          created_at: msg.created_at,
         })) || [];
 
       setSelectedChatId(chatId);
@@ -71,32 +75,51 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      let conversationId = selectedChatId;
-      let response = null;
-      if (!conversationId) {
-        response = await api.post("/messages/", {
-          content: messageText,
-        });
-        conversationId = response.data.conversation.id;
-        setSelectedChatId(conversationId);
-        console.log("new conversation created:", conversationId);
-      } else {
-        response = await api.post(`/messages/`, {
-          content: messageText,
-          conversation_id: conversationId,
-        });
-        console.log("message sent:", response.data, " ------------ ", conversationId);
+      const requestBody = selectedChatId 
+        ? {
+            content: messageText,
+            conversation_id: selectedChatId,
+          }
+        : {
+            content: messageText,
+          };
+
+      const response = await api.post("/messages/", requestBody);
+      
+      // Handle the exact response format from the backend
+      if (response.data.error) {
+        console.error("Chat response error:", response.data.error);
+        const errorMessage: Message = {
+          sender: "assistant",
+          text: "Sorry, I encountered an error processing your message. Please try again.",
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        return;
       }
-      const aiResponse =
-        response.data.response ||
-        "I received your message and I'm processing it.";
 
-      const aiMessage: Message = {
-        sender: "ai",
-        text: aiResponse,
-      };
+      if (response.data.message) {
+        const { content, conversation_id } = response.data.message;
+        
+        if (!selectedChatId && conversation_id) {
+          setSelectedChatId(conversation_id);
+          console.log("New conversation created:", conversation_id);
+        }
 
-      setMessages((prev) => [...prev, aiMessage]);
+        const assistantMessage: Message = {
+          id: response.data.message.id,
+          sender: "assistant",
+          text: content,
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+      } else {
+        console.warn("Unexpected response structure:", response.data);
+        const fallbackMessage: Message = {
+          sender: "assistant",
+          text: "I received your message but couldn't process the response properly.",
+        };
+        setMessages((prev) => [...prev, fallbackMessage]);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       setMessages((prev) => prev.slice(0, -1));

@@ -6,7 +6,9 @@ services:
     ports:
       - "8000:8080"
     volumes:
-      - .:/app
+      - ./app:/app/app
+      - ./requirements.txt:/app/requirements.txt
+      - ./alembic.ini:/app/alembic.ini
     environment:
       - DATABASE_URL=${DOCKER_DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}

@@ -89,10 +89,8 @@ const Sidebar = () => {
   };
 
   const handleDeleteChat = async (chatId: string, chatTitle: string) => {
-    if (confirm(`Are you sure you want to delete "${chatTitle}"?`)) {
       try {
         await deleteChat(chatId);
-        // Remove the chat from local state
         setChatHistory((prevChatHistory) =>
           prevChatHistory.filter((chat) => chat.id !== chatId)
         );
@@ -100,7 +98,7 @@ const Sidebar = () => {
         console.error("Failed to delete chat:", error);
         alert("Failed to delete chat. Please try again.");
       }
-    }
+
   };
 
   return (

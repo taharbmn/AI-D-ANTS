@@ -46,6 +46,6 @@ RUN chmod +x /start.sh
 # CMD ["sh", "-c", "while :; do sleep 6; done"]
 
 # Run with startup script that handles migrations and server startup
-CMD ["/start.sh"]
+CMD ["bash", "/start.sh"]
 
 
