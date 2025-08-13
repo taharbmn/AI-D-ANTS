@@ -20,7 +20,6 @@ import {
   getS3Buckets,
   getBucketObjects,
   getObjectContent,
-  getAwsConfigStatus,
   testBucketConnection
 } from '../lib/s3-actions';
 
@@ -58,18 +57,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   const [error, setError] = useState<string | null>(null);
   const [isLoadingBuckets, setIsLoadingBuckets] = useState(false);
 
-  useEffect(() => {
-    checkAwsConfig();
-  }, []);
 
-  const checkAwsConfig = async () => {
-    try {
-      const status = await getAwsConfigStatus();
-      setAwsConfigured(status.configured);
-    } catch (error) {
-      console.error('Error checking AWS config:', error);
-    }
-  };
 
   const extractBucketNameFromUrl = (url: string): string => {
     if (url.startsWith('s3://')) {
