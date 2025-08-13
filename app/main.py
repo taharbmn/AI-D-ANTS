@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, 
+sys.path.insert(0,
     os.path.dirname(
         os.path.dirname(
             os.path.dirname(
@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
         # Initialize settings and system prompts
         config = initialize_config()
         system_prompts = load_system_prompts()
-        
+
         # Initialize and validate clients
         client_cache = initialize_cache_client()
 
@@ -47,9 +47,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error during application startup: {str(e)}")
         raise
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down application...")
 
@@ -58,8 +58,8 @@ app = FastAPI(
     title="AI-D-ANTS API",
     description="AI-D-ANTS API for AI-driven data analysis and processing",
     version="0.1.0",
-    lifespan=lifespan,
-    root_path="/ai"
+    lifespan=lifespan
+    # root_path="/ai"
 )
 
 

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from app.schemas.conversation import ConversationCreate, Conversation
 from app.crud.conversation import create_conversation, get_conversation, get_conversations, update_conversation, delete_conversation
-from app.api.deps import get_db
+from app.core.database import get_db
 
 router = APIRouter()
 
