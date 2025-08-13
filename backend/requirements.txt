@@ -8,3 +8,4 @@ pydantic-settings
 alembic
 pytest
 httpx
+boto3
