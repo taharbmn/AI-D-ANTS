@@ -1,5 +1,7 @@
 import os
 import sys
+import os
+import sys
 sys.path.insert(0, 
 	os.path.dirname(
 		os.path.dirname(
@@ -9,6 +11,8 @@ sys.path.insert(0,
 		)
 	)
 )
+
+import json
 import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -38,12 +42,9 @@ class DatabricksModel(BaseClient):
 		
 		# Set base URL - default or from environment
 		self.base_url = (base_url or 
-						os.environ.get('DATABRICKS_BASE_URL') or 
-						"https://dbc-a61b8266-0ab1.cloud.databricks.com/serving-endpoints")
+						os.environ.get('DATABRICKS_BASE_URL'))
 		
-		# Initialize OpenAI client for Databricks
-		# Note: The model name should NOT be part of the base URL
-		# It will be passed as a parameter to the API calls
+
 		self.client = OpenAI(
 			api_key=self.databricks_token,
 			base_url=self.base_url

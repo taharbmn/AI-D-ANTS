@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.endpoints import anomalies, metadata, chat
+from app.endpoints import anomalies, metadata, chat , messages , conversations, env_variables
 
 api_router = APIRouter()
 
@@ -9,11 +9,15 @@ api_router.include_router(
 )
 
 api_router.include_router(
-    metadata.router, 
+    metadata.router,
     prefix="/metadata"
 )
 
 api_router.include_router(
-    chat.router, 
+    chat.router,
     prefix="/chat"
 )
+
+api_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
+api_router.include_router(messages.router, prefix="/messages", tags=["messages"])
+api_router.include_router(env_variables.router, prefix="/env", tags=["environment-variables"])

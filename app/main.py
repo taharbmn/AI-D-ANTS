@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, 
+sys.path.insert(0,
     os.path.dirname(
         os.path.dirname(
             os.path.dirname(
@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from typing import Dict
 from app.endpoints.router import api_router
-from app.core.config import get_settings, init_settings, load_system_prompts, init_client_cache
+from app.core.config import initialize_config, load_system_prompts, initialize_cache_client
 import logging
 import sys
 
@@ -34,19 +34,22 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up application...")
     try:
         # Initialize settings and system prompts
-        settings = init_settings()
+        config = initialize_config()
         system_prompts = load_system_prompts()
-        
+
         # Initialize and validate clients
-        client_cache = init_client_cache()
-        
+        client_cache = initialize_cache_client()
+
+        logger.info("loaded system prompts: %s", len(system_prompts))
+        logger.info("Application startup complete with config: %s", config)
+        logger.info("Client cache initialized with clients: %s", client_cache)
         logger.info("Application startup complete.")
     except Exception as e:
         logger.error(f"Error during application startup: {str(e)}")
         raise
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down application...")
 
@@ -55,8 +58,8 @@ app = FastAPI(
     title="AI-D-ANTS API",
     description="AI-D-ANTS API for AI-driven data analysis and processing",
     version="0.1.0",
-    lifespan=lifespan,
-    root_path="/ai"
+    lifespan=lifespan
+    # root_path="/ai"
 )
 
 

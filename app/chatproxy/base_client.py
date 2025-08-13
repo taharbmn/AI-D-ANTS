@@ -10,6 +10,7 @@ sys.path.insert(0,
 	)
 )
 
+
 import logging
 from dotenv import load_dotenv
 from typing import List, Dict, Any
@@ -20,7 +21,7 @@ load_dotenv()
 class BaseClient:
 	"""
 	BaseClient is a base class for API clients.
-	It should be extended by specific API clients like Databricks models.
+	It should be extended by specific API clients like GeminiClient.
 	"""
 
 	def __init__(self):
@@ -47,44 +48,21 @@ class BaseClient:
 		"""
 		raise NotImplementedError("This method should be overridden by subclasses.")
 	
-	def _clean_request(self, messages: List[Dict[str, Any]], system_prompt: str = None) -> Dict[str, Any]:
-		_messages      = []
+	def _clean_request(self, messages: List[Dict[str, Any]], system_prompt: str = None, model_provider: str = None) -> Dict[str, Any]:
+		"""
+		Cleans the system prompt and delegates message encoding to the specific provider's method.
+		"""
 		_system_prompt = ""
 		if isinstance(system_prompt, str) and str(system_prompt).strip():
 			_system_prompt = str(system_prompt).strip()
-		for message in messages:
-			if not isinstance(message, dict):
-				logger.warning(f"Skipping non-dict message: {message}")
-				continue
-			role    = message.get('role', 'user').strip().lower()
-			content = message.get('content', [])
-			if role not in ['user', 'assistant']:
-				logger.warning(f"Skipping message with invalid role: {message}")
-				continue
-			if not content or not isinstance(content, list):
-				logger.warning(f"Skipping message with no content or invalid content type: {message}")
-				continue
-			_content = []
-			for part in content:
-				text = None
-				if isinstance(part, dict) and 'text' in part and part['text'] is not None:
-					text = str(part['text']).strip()
-				elif isinstance(part, str) and part is not None:
-					text = str(part).strip()
-				if not text or not isinstance(text, str):
-					logger.warning(f"Skipping content part without valid 'text': {part}")
-					continue
-				if text:
-					_content.append({'text': text})
-			if not _content:
-				logger.warning(f"Skipping message with empty content: {message}")
-				continue
-			_messages.append({
-				'role'   : role,
-				'content': _content
-			})
+
+		# The main change is here: We no longer process the messages in the base client.
+		# We pass the original, untouched messages list directly to the provider-specific
+		# _encoded_messages method, which knows how to handle special types like images.
+		encoded_messages = self._encoded_messages(messages)
+
 		return {
-			"messages"     : self._encoded_messages(_messages),
+			"messages": encoded_messages,
 			"system_prompt": _system_prompt
 		}
 
