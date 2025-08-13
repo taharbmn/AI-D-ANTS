@@ -6,6 +6,7 @@ from uuid import UUID
 class MessageBase(BaseModel):
     content: str
     conversation_id: UUID
+    sender_type: Optional[str] = "user"
 
 class MessageCreate(MessageBase):
     pass
@@ -17,6 +18,7 @@ class MessageCreateWithConversation(BaseModel):
 class Message(MessageBase):
     id: UUID
     created_at: datetime
+    sender_type: str
 
     class Config:
         from_attributes = True

@@ -7,6 +7,8 @@ from app.schemas.conversation import ConversationCreate, Conversation
 from app.crud.message import create_message, get_messages_by_conversation, get_message, update_message, delete_message, get_last_messages
 from app.crud.conversation import create_conversation, get_conversation
 from app.core.database import get_db
+from app.models.chat import ChatRequest, ChatMessage
+from app.endpoints.chat import chat_endpoint
 
 router = APIRouter()
 
@@ -95,7 +97,7 @@ def get_last_messages_formatted(
     return formatted_messages
 
 @router.post("/", response_model=dict)
-def create_conversation_with_first_message(
+async def create_conversation_with_first_message(
     message_data: MessageCreateWithConversation,
     db: Session = Depends(get_db)
 ):
@@ -106,12 +108,20 @@ def create_conversation_with_first_message(
     The conversation title will be the first 20 characters of the message content.
     """
     existing_conversation = None
+    conversation_history = []
 
     # Check if conversation_id is provided and if the conversation exists
     if message_data.conversation_id:
         existing_conversation = get_conversation(db=db, conversation_id=message_data.conversation_id)
         if not existing_conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Get conversation history only if conversation exists
+        conversation_history = get_conversation_context(
+            conversation_id=existing_conversation.id,
+            db=db,
+            message_count=10
+        )
 
     if existing_conversation:
         # Use existing conversation
@@ -123,30 +133,6 @@ def create_conversation_with_first_message(
             conversation_id=conversation.id
         )
         new_message = create_message(db=db, message=message_create)
-
-        # Get conversation history
-        conversation_history = get_conversation_context(
-            conversation_id=conversation.id,
-            db=db,
-            message_count=10
-        )
-
-        return {
-            "conversation": {
-                "id": conversation.id,
-                "title": conversation.title,
-                "created_at": conversation.created_at,
-                "updated_at": conversation.updated_at
-            },
-            "message": {
-                "id": new_message.id,
-                "content": new_message.content,
-                "conversation_id": new_message.conversation_id,
-                "created_at": new_message.created_at
-            },
-            "conversation_history": conversation_history,
-            "action": "added_to_existing_conversation"
-        }
     else:
         # Create new conversation
         # Extract first 20 characters for the title
@@ -165,56 +151,58 @@ def create_conversation_with_first_message(
         )
         new_message = create_message(db=db, message=message_create)
 
-        # Get conversation history
-        conversation_history = get_conversation_context(
-            conversation_id=new_conversation.id,
-            db=db,
-            message_count=10
+        # Set conversation for consistency
+        conversation = new_conversation
+
+        # Prepare chat request (for new conversation, history will be empty)
+    chat_request = ChatRequest(
+            message=ChatMessage(
+                role="user",
+                content=message_data.content
+            ),
+            messages_historical=[
+                ChatMessage(
+                    role=msg["role"],
+                    content=msg["content"][0]["text"] if msg["content"] and len(msg["content"]) > 0 else ""
+                )
+                for msg in conversation_history
+            ]
         )
 
+    # Send to chat endpoint
+    chat_response = await chat_endpoint(chat_request)
+
+    # Extract assistant response
+    if chat_response.get("success") and chat_response.get("response", {}).get("messages"):
+        assistant_message_content = chat_response["response"]["messages"][0]["content"][0]["text"]
+
+        # Save assistant response to database
+        assistant_message = MessageCreate(
+            content=assistant_message_content,
+            conversation_id=conversation.id,
+            sender_type="assistant"
+        )
+        assistant_db_message = create_message(db=db, message=assistant_message)
+
         return {
-            "conversation": {
-                "id": new_conversation.id,
-                "title": new_conversation.title,
-                "created_at": new_conversation.created_at,
-                "updated_at": new_conversation.updated_at
-            },
             "message": {
-                "id": new_message.id,
-                "content": new_message.content,
-                "conversation_id": new_message.conversation_id,
-                "created_at": new_message.created_at
-            },
-            "conversation_history": conversation_history,
-            "action": "created_new_conversation"
+                "id": assistant_db_message.id,
+                "content": assistant_db_message.content,
+                "conversation_id": assistant_db_message.conversation_id,
+                "created_at": assistant_db_message.created_at
+            }
         }
+    else:
+        # Handle chat error
+        return {
+            "error": "Failed to get chat response",
+            "chat_response": chat_response
+        }
+
 
 
 @router.get("/conversation/{conversation_id}", response_model=list[Message])
 def read_messages_by_conversation(conversation_id: UUID, db: Session = Depends(get_db)):
     messages = get_messages_by_conversation(db=db, conversation_id=conversation_id)
     return messages
-
-
-@router.get("/conversation/{conversation_id}/context")
-def get_conversation_context_endpoint(
-    conversation_id: UUID,
-    db: Session = Depends(get_db),
-    message_count: int = 10
-):
-    """
-    Get conversation context (formatted for AI/chat systems) for a given conversation.
-    Returns the last N messages in a format suitable for conversation history.
-    """
-    context = get_conversation_context(
-        conversation_id=conversation_id,
-        db=db,
-        message_count=message_count
-    )
-
-    return {
-        "conversation_id": conversation_id,
-        "message_count": len(context),
-        "context": context
-    }
 
