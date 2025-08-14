@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-
+import api from "@/lib/api";
 
 const initialEnv = {
   DATABRICKS_TOKEN: '',
@@ -27,13 +27,18 @@ const SettingsModal = ({
     setError('');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!env.DATABRICKS_TOKEN || !env.DATABRICKS_BASE_URL || !env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
       setError('Please fill in all required fields.');
       return;
     }
-    setSaved(true);
-    setError('');
+    try {
+      await api.post('/env/variables', {variables:env});
+      setError('');
+      setSaved(true);
+    } catch (error) {
+      setError('Failed to save settings.');
+    }
   };
 
   return (

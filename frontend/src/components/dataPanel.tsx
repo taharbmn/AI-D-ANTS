@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CloudIcon, 
   ArrowDown01Icon, 
@@ -11,37 +11,32 @@ import {
   DatabaseIcon,
   SearchIcon,
   DownloadIcon,
-  EyeIcon
+  EyeIcon,
+  AlertCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import JsonView from '@uiw/react-json-view';
+import {
+  getS3Buckets,
+  getBucketObjects,
+  getObjectContent,
+  testBucketConnection
+} from '../lib/s3-actions';
+
+interface S3Object {
+  key: string;
+  size: number;
+  last_modified: string;
+  etag: string;
+  storage_class: string;
+}
 
 interface Bucket {
   name: string;
+  creation_date?: string;
+  object_count?: number;
   files: string[];
-}
-
-interface JsonData {
-  analytics: {
-    period: string;
-    metrics: {
-      total_revenue: number;
-      growth_rate: number;
-      customer_acquisition: number;
-      churn_rate: number;
-    };
-    top_performing_products: Array<{
-      id: string;
-      name: string;
-      revenue: number;
-      units_sold: number;
-    }>;
-    regional_breakdown: {
-      north_america: { revenue: number; percentage: number };
-      europe: { revenue: number; percentage: number };
-      asia_pacific: { revenue: number; percentage: number };
-    };
-  };
+  objects?: S3Object[];
 }
 
 interface DataPanelProps {
@@ -55,80 +50,134 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [jsonData, setJsonData] = useState<JsonData | null>(null);
+  const [jsonData, setJsonData] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [awsConfigured, setAwsConfigured] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingBuckets, setIsLoadingBuckets] = useState(false);
 
-  // Mock data for demonstration
-  const mockBuckets: Bucket[] = [
-    {
-      name: "sales-data-2024",
-      files: ["quarterly-reports.json", "monthly-sales.json", "customer-analytics.json", "product-metrics.json"]
-    },
-    {
-      name: "user-analytics",
-      files: ["behavior-tracking.json", "demographics.json", "session-data.json"]
-    },
-    {
-      name: "financial-records",
-      files: ["revenue-breakdown.json", "expense-reports.json", "budget-analysis.json"]
-    }
-  ];
 
-  const mockJsonData: JsonData = {
-    analytics: {
-      period: "Q3 2024",
-      metrics: {
-        total_revenue: 2500000,
-        growth_rate: 15.7,
-        customer_acquisition: 1250,
-        churn_rate: 3.2
-      },
-      top_performing_products: [
-        { id: "PROD-001", name: "Enterprise Suite", revenue: 850000, units_sold: 340 },
-        { id: "PROD-002", name: "Analytics Pro", revenue: 620000, units_sold: 780 },
-        { id: "PROD-003", name: "Data Insights", revenue: 430000, units_sold: 950 }
-      ],
-      regional_breakdown: {
-        north_america: { revenue: 1200000, percentage: 48 },
-        europe: { revenue: 800000, percentage: 32 },
-        asia_pacific: { revenue: 500000, percentage: 20 }
-      }
+
+  const extractBucketNameFromUrl = (url: string): string => {
+    if (url.startsWith('s3://')) {
+      return url.replace('s3://', '').split('/')[0];
     }
+    
+    if (url.includes('.s3.') && url.includes('.amazonaws.com')) {
+      const match = url.match(/https?:\/\/([^.]+)\.s3\./);
+      return match ? match[1] : url;
+    }
+    
+    return url;
   };
 
   const handlePullBuckets = async () => {
-    if (!s3Url.trim()) return;
+    if (!s3Url.trim()) {
+      setError('Please enter an S3 URL or bucket name');
+      return;
+    }
+
+    if (!awsConfigured) {
+      setError('AWS credentials not configured in backend. Please check your backend .env file.');
+      return;
+    }
     
-    setIsLoading(true);
-    // Simulate API call delay
-    setTimeout(() => {
-      setBuckets(mockBuckets);
-      setIsLoading(false);
-    }, 2000);
+    setIsLoadingBuckets(true);
+    setError(null);
+
+    try {
+      const bucketName = extractBucketNameFromUrl(s3Url.trim());
+      
+      await testBucketConnection(bucketName);
+
+      if (bucketName) {
+        const objectsResponse = await getBucketObjects(bucketName);
+        
+        const bucket: Bucket = {
+          name: bucketName,
+          files: objectsResponse.objects.map(obj => obj.key),
+          objects: objectsResponse.objects
+        };
+
+        setBuckets([bucket]);
+      } else {
+        const response = await getS3Buckets();
+        const bucketsWithFiles: Bucket[] = [];
+
+        for (const bucket of response.buckets) {
+          try {
+            const objectsResponse = await getBucketObjects(bucket.name, '', 100);
+            bucketsWithFiles.push({
+              name: bucket.name,
+              creation_date: bucket.creation_date,
+              object_count: bucket.object_count,
+              files: objectsResponse.objects.map(obj => obj.key),
+              objects: objectsResponse.objects
+            });
+          } catch (error) {
+            bucketsWithFiles.push({
+              name: bucket.name,
+              creation_date: bucket.creation_date,
+              object_count: bucket.object_count,
+              files: [],
+              objects: []
+            });
+          }
+        }
+
+        setBuckets(bucketsWithFiles);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to fetch S3 data');
+      setBuckets([]);
+    } finally {
+      setIsLoadingBuckets(false);
+    }
   };
 
-  const handleBucketClick = (bucketName: string) => {
+  const handleBucketClick = async (bucketName: string) => {
     if (expandedBucket === bucketName) {
       setExpandedBucket(null);
     } else {
       setExpandedBucket(bucketName);
       setSelectedFile(null);
       setJsonData(null);
+
+      const bucket = buckets.find(b => b.name === bucketName);
+      if (bucket && (!bucket.objects || bucket.objects.length === 0) && bucket.files.length === 0) {
+        try {
+          const objectsResponse = await getBucketObjects(bucketName);
+          setBuckets(prev => prev.map(b => 
+            b.name === bucketName 
+              ? { ...b, files: objectsResponse.objects.map(obj => obj.key), objects: objectsResponse.objects }
+              : b
+          ));
+        } catch (error) {
+          console.error('Error loading bucket objects:', error);
+        }
+      }
     }
   };
 
-  const handleFileClick = (fileName: string) => {
+  const handleFileClick = async (bucketName: string, fileName: string) => {
     if (selectedFile === fileName) {
       setSelectedFile(null);
       setJsonData(null);
     } else {
       setSelectedFile(fileName);
       setIsLoadingFile(true);
-      setTimeout(() => {
-        setJsonData(mockJsonData);
+      setError(null);
+
+      try {
+        const content = await getObjectContent(bucketName, fileName);
+        setJsonData(content.content);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to load file content');
+        setJsonData(null);
+      } finally {
         setIsLoadingFile(false);
-      }, 500);
+      }
     }
   };
 
@@ -143,29 +192,54 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     )
   }));
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getFileExtension = (filename: string): string => {
+    return filename.split('.').pop()?.toLowerCase() || '';
+  };
+
+  const isJsonFile = (filename: string): boolean => {
+    return getFileExtension(filename) === 'json';
+  };
   return (
     <div className="w-[530px] bg-neutral-800 rounded-4xl p-6 flex flex-col gap-6 h-full">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <HugeiconsIcon icon={DatabaseIcon} className="text-blue-400" size={24} />
         <h2 className="text-xl font-bold text-white">Data Explorer</h2>
       </div>
-    <div className="space-y-3">
-        <label className="text-sm font-medium text-gray-300 inline-block">S3 Bucket URL</label>
+
+      {error && (
+        <div className="bg-red-900/50 border border-red-500 rounded-2xl p-4 flex items-start gap-3">
+          <HugeiconsIcon icon={AlertCircleIcon} className="text-red-400 flex-shrink-0 mt-0.5" size={20} />
+          <div>
+            <p className="text-red-200 text-sm font-medium">Error</p>
+            <p className="text-red-300 text-sm">{error}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <label className="text-sm font-medium text-gray-300 inline-block">S3 Bucket URL or Name</label>
         <div className="flex gap-3">
           <input
             type="text"
             value={s3Url}
             onChange={(e) => setS3Url(e.target.value)}
-            placeholder="s3://your-bucket-name"
+            placeholder="s3://your-bucket-name or just bucket-name"
             className="flex-1 bg-neutral-900 border border-gray-600 rounded-full px-6 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
           />
           <button
             onClick={handlePullBuckets}
-            disabled={isLoading || !s3Url.trim()}
+            disabled={isLoadingBuckets || !s3Url.trim()}
             className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-3 rounded-full font-medium transition-colors flex items-center gap-2 min-w-[100px]"
           >
-            {isLoading ? (
+            {isLoadingBuckets ? (
               <>
                 <HugeiconsIcon icon={Loading03Icon} className="animate-spin" size={16} />
                 Pulling...
@@ -200,7 +274,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
         </div>
       )}
 
-      {/* Buckets List */}
       <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar">
         {buckets.length > 0 && (
           <div className="space-y-3">
@@ -265,101 +338,124 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                     }`}
                   >
                     <div className="space-y-2">
-                      {bucket.files.map((file, index) => (
-                        <div key={file} className="space-y-3">
-                         <div
-                            onClick={() => handleFileClick(file)}
-                            className={`p-4 text-sm cursor-pointer rounded-full w-[90%] transition-all duration-300 group flex items-center gap-3 ${
-                              selectedFile === file
-                                ? 'bg-blue-600 text-white shadow-lg'
-                                : 'text-gray-300 hover:bg-neutral-600 hover:text-white bg-neutral-800/50'
-                            } transform hover:translate-x-1`}
-                            style={{
-                              transitionDelay: expandedBucket === bucket.name ? `${index * 50}ms` : '0ms'
-                            }}
-                          >
-                            <HugeiconsIcon 
-                              icon={FileIcon} 
-                              className={`${selectedFile === file ? 'text-blue-200' : 'text-blue-400'} transition-colors`}
-                              size={16} 
-                            />
-                            <span className="flex-1">{file}</span>
-                            {selectedFile === file && (
+                      {bucket.files.map((file, index) => {
+                        const fileObj = bucket.objects?.find(obj => obj.key === file);
+                        return (
+                          <div key={file} className="space-y-3">
+                            <div
+                              onClick={() => handleFileClick(bucket.name, file)}
+                              className={`p-4 text-sm cursor-pointer rounded-full w-[90%] transition-all duration-300 group flex items-center gap-3 ${
+                                selectedFile === file
+                                  ? 'bg-blue-600 text-white shadow-lg'
+                                  : 'text-gray-300 hover:bg-neutral-600 hover:text-white bg-neutral-800/50'
+                              } transform hover:translate-x-1 ${
+                                !isJsonFile(file) ? 'opacity-60 cursor-not-allowed' : ''
+                              }`}
+                              style={{
+                                transitionDelay: expandedBucket === bucket.name ? `${index * 50}ms` : '0ms'
+                              }}
+                            >
                               <HugeiconsIcon 
-                                icon={EyeIcon} 
-                                className="text-blue-200" 
-                                size={14} 
+                                icon={FileIcon} 
+                                className={`${selectedFile === file ? 'text-blue-200' : 'text-blue-400'} transition-colors`}
+                                size={16} 
                               />
+                              <div className="flex-1">
+                                <span className="block">{file}</span>
+                                {fileObj && (
+                                  <span className="text-xs text-gray-400">
+                                    {formatFileSize(fileObj.size)} • {new Date(fileObj.last_modified).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                              {!isJsonFile(file) && (
+                                <span className="text-xs text-gray-500">JSON only</span>
+                              )}
+                              {selectedFile === file && isJsonFile(file) && (
+                                <HugeiconsIcon 
+                                  icon={EyeIcon} 
+                                  className="text-blue-200" 
+                                  size={14} 
+                                />
+                              )}
+                            </div>
+                            {selectedFile === file && isJsonFile(file) && (
+                              <div className="ml-6 p-5 bg-black/40 rounded-3xl animate-fadeIn border border-gray-700">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-2">
+                                    <HugeiconsIcon icon={FileIcon} className="text-green-400" size={16} />
+                                    <span className="text-sm font-medium text-gray-300">File Content</span>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Download JSON file
+                                      const dataStr = JSON.stringify(jsonData, null, 2);
+                                      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                                      const url = URL.createObjectURL(dataBlob);
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.download = file;
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                      URL.revokeObjectURL(url);
+                                    }}
+                                    className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-200 transition-colors bg-neutral-700 hover:bg-neutral-600 px-3 py-2 rounded-full"
+                                  >
+                                    <HugeiconsIcon icon={DownloadIcon} size={12} />
+                                    Export
+                                  </button>
+                                </div>
+                                
+                                {isLoadingFile ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <HugeiconsIcon icon={Loading03Icon} className="animate-spin text-blue-400" size={24} />
+                                    <span className="ml-2 text-gray-400">Loading file content...</span>
+                                  </div>
+                                ) : jsonData ? (
+                                  <JsonView
+                                    value={jsonData}
+                                    displayDataTypes={false}
+                                    enableClipboard={false}
+                                    shortenTextAfterLength={30}
+                                    collapsed={1}
+                                    style={{
+                                      '--w-rjv-color': '#E2E8F0',
+                                      '--w-rjv-key-number': '#22D3EE',
+                                      '--w-rjv-key-string': '#A78BFA',
+                                      '--w-rjv-background-color': 'transparent',
+                                      '--w-rjv-line-color': '#33415580',
+                                      '--w-rjv-arrow-color': '#94A3B8',
+                                      '--w-rjv-edit-color': '#22D3EE',
+                                      '--w-rjv-info-color': '#94A3B8CC',
+                                      '--w-rjv-update-color': '#34D399',
+                                      '--w-rjv-copied-color': '#22D3EE',
+                                      '--w-rjv-copied-success-color': '#10B981',
+                                      '--w-rjv-curlybraces-color': '#818CF8',
+                                      '--w-rjv-colon-color': '#818CF8',
+                                      '--w-rjv-brackets-color': '#818CF8',
+                                      '--w-rjv-ellipsis-color': '#F472B6',
+                                      '--w-rjv-quotes-color': '#94A3B8',
+                                      '--w-rjv-quotes-string-color': '#7DD3FC',
+                                      '--w-rjv-type-string-color': '#7DD3FC',
+                                      '--w-rjv-type-int-color': '#A3E635',
+                                      '--w-rjv-type-float-color': '#A3E635',
+                                      '--w-rjv-type-bigint-color': '#A3E635',
+                                      '--w-rjv-type-boolean-color': '#F59E0B',
+                                      '--w-rjv-type-date-color': '#A3E635',
+                                      '--w-rjv-type-url-color': '#60A5FA',
+                                      '--w-rjv-type-null-color': '#A78BFA',
+                                      '--w-rjv-type-nan-color': '#F43F5E',
+                                      '--w-rjv-type-undefined-color': '#FB7185',
+                                    } as React.CSSProperties}
+                                  />
+                                ) : null}
+                              </div>
                             )}
                           </div>
-
-                          {/* JSON Data Display - appears directly below the clicked file */}
-                          {selectedFile === file && (
-                            <div className="ml-6 p-5 bg-black/40 rounded-3xl animate-fadeIn border border-gray-700">
-                              <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2">
-                                  <HugeiconsIcon icon={FileIcon} className="text-green-400" size={16} />
-                                  <span className="text-sm font-medium text-gray-300">File Content</span>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Add download functionality here
-                                  }}
-                                  className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-200 transition-colors bg-neutral-700 hover:bg-neutral-600 px-3 py-2 rounded-full"
-                                >
-                                  <HugeiconsIcon icon={DownloadIcon} size={12} />
-                                  Export
-                                </button>
-                              </div>
-                              
-                              {isLoadingFile ? (
-                                <div className="flex items-center justify-center py-8">
-                                  <HugeiconsIcon icon={Loading03Icon} className="animate-spin text-blue-400" size={24} />
-                                  <span className="ml-2 text-gray-400">Loading file content...</span>
-                                </div>
-                              ) : jsonData ? (
-                                <JsonView
-                                  value={jsonData}
-                                  displayDataTypes={false}
-                                  enableClipboard={false}
-                                  shortenTextAfterLength={30}
-                                  collapsed={1}
-                                  style={{
-                                    '--w-rjv-color': '#E2E8F0',
-                                    '--w-rjv-key-number': '#22D3EE',
-                                    '--w-rjv-key-string': '#A78BFA',
-                                    '--w-rjv-background-color': 'transparent',
-                                    '--w-rjv-line-color': '#33415580',
-                                    '--w-rjv-arrow-color': '#94A3B8',
-                                    '--w-rjv-edit-color': '#22D3EE',
-                                    '--w-rjv-info-color': '#94A3B8CC',
-                                    '--w-rjv-update-color': '#34D399',
-                                    '--w-rjv-copied-color': '#22D3EE',
-                                    '--w-rjv-copied-success-color': '#10B981',
-                                    '--w-rjv-curlybraces-color': '#818CF8',
-                                    '--w-rjv-colon-color': '#818CF8',
-                                    '--w-rjv-brackets-color': '#818CF8',
-                                    '--w-rjv-ellipsis-color': '#F472B6',
-                                    '--w-rjv-quotes-color': '#94A3B8',
-                                    '--w-rjv-quotes-string-color': '#7DD3FC',
-                                    '--w-rjv-type-string-color': '#7DD3FC',
-                                    '--w-rjv-type-int-color': '#A3E635',
-                                    '--w-rjv-type-float-color': '#A3E635',
-                                    '--w-rjv-type-bigint-color': '#A3E635',
-                                    '--w-rjv-type-boolean-color': '#F59E0B',
-                                    '--w-rjv-type-date-color': '#A3E635',
-                                    '--w-rjv-type-url-color': '#60A5FA',
-                                    '--w-rjv-type-null-color': '#A78BFA',
-                                    '--w-rjv-type-nan-color': '#F43F5E',
-                                    '--w-rjv-type-undefined-color': '#FB7185',
-                                  } as React.CSSProperties}
-                                />
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
