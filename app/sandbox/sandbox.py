@@ -1,110 +1,165 @@
-# -*- coding: utf-8 -*-
+import io
+import uuid
+import pandas
+import contextlib
+import multiprocessing
+from app.extractors.python_extractor import PythonExtractor
 
-from typing import Optional, Union, List, Dict, Any
+SAFE_BUILTINS = {
+    # '__builtins__': __builtins__,
+    'print'       : print,
+    'type'        : type,
+    'all'         : all,
+    'len'         : len,
+    'str'         : str,
+    'int'         : int,
+    'float'       : float,
+    'list'        : list,
+    'dict'        : dict,
+    'tuple'       : tuple,
+    'set'         : set,
+    'range'       : range,
+    'abs'         : abs,
+    'round'       : round,
+    'max'         : max,
+    'min'         : min,
+    'sum'         : sum,
+    'sorted'      : sorted,
+    'isinstance'  : isinstance,
+    'Exception'   : Exception,
+    '__import__'  : __import__,
+}
+
+def _worker_exec(code: str, result_queue: multiprocessing.Queue, builtins, retvar_name: str = ""):
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    session_globals = {
+        '__builtins__': builtins,
+        "pd"          : pandas,
+        "pandas"      : pandas
+    }
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            exec(code, session_globals)
+        result_queue.put(
+            {
+                "success"  : True,
+                "status"   : 200,
+                "stdout"   : str(stdout.getvalue()).strip(),
+                "stderr"   : str(stderr.getvalue()).strip(),
+                "return"   : session_globals.get(retvar_name),
+                "error"    : None
+            }
+        )
+    except Exception as e:
+        result_queue.put(
+            {
+                "success"  : False,
+                "status"   : 500,
+                "stdout"   : str(stdout.getvalue()).strip(),
+                "stderr"   : str(stderr.getvalue()).strip(),
+                "return"   : session_globals.get(retvar_name),
+                "error"    : f"{type(e).__name__}: {str(e)}\n{stderr.getvalue()}",
+            }
+        )
 
 class PythonSandbox:
-	"""
-	A class to handle Python scripts in a sandbox environment.
-	"""
-	def __init__(self, content: str, filename: Optional[str] = None):
-		self._content          = content
-		self._start_separators = ["start", "script", "number"]
-		self._end_separators   = ["end", "script", "number"]
-		if not self._content:
-			self._content = open(filename).read()
-		self._contents = []
-		marker = "```"
-		if (marker in self._content.lower()):
-			content = self._content
-			while (marker in content.lower()):
-				i = content.lower().index(marker)
-				before   = str(content[:i]).strip()
-				langname = content[i:]
-				for c in "\r\t\n\v\f ":
-					langname = langname.split(c)[0]
-				after   = content[i + len(langname):].split(marker)[0]
-				content = content[i + len(langname) + len(after):]
-				before  = str(before).strip()
-				after   = str(after).strip()
-				if before:
-					self._contents.append(before)
-				if after:
-					self._contents.append(after)
-		else:
-			self._contents = [ self._content ]
 
+    def __init__(self, code):
+        self._code = code
 
-	def is_marker(self, line: str, markers: List[str]) -> bool:
-		"""
-		Check if the line contains all the markers.
-		"""
-		for marker in markers:
-			if not (marker.lower().strip() in line.lower()):
-				return False
-		return True
+    def get_function_by_name(self, name: str):
+        for function in PythonExtractor(self._code).functions:
+            if function["name"] == name:
+                return function
+        return None
 
-	def is_startof_script(self, line: str) -> bool:
-		"""
-		Check if the line indicates the start of a script.
-		"""
-		return self.is_marker(line, self._start_separators)
-	
-	def is_endof_script(self, line: str) -> bool:
-		"""
-		Check if the line indicates the end of a script.
-		"""
-		return self.is_marker(line, self._end_separators)
-	
-	def is_empty_script(self, section: str) -> bool:
-		"""
-		Check if the script section is empty.
-		"""
-		_section = ""
-		for line in section.split("\n"):
-			line = line.strip()
-			if not line or line.startswith("#"):
-				continue
-			_section += line + "\n"
-		_section = _section.strip()
-		if not _section:
-			return True
-		return False
+    def map_arguments(self, args):
+        if not args:
+            args = []
+        builtins = SAFE_BUILTINS.copy()
+        argnames = []
+        for argument in args:
+            argname = ("a" + str(uuid.uuid4())).replace("-","")
+            while (argname in builtins):
+                argname = ("a" + str(uuid.uuid4())).replace("-","")
+            argnames.append(argname)
+            builtins[argname] = argument
+        return [argnames, builtins]
 
-	def split(self) -> List[str]:
-		"""
-		Split the content into scripts based on start and end markers.
-		"""
-		scripts = {}
-		for content in self._contents:
-			sections = []
-			for sline in content.split("\n"):
-				if not self.is_startof_script(sline):
-					continue
-				nosection = True
-				for eline in content[content.index(sline) + len(sline):].split("\n"):
-					if self.is_startof_script(eline) or self.is_endof_script(eline):
-						section = content[content.index(sline) : content.index(eline) + len(eline)]
-						if not self.is_empty_script(section):
-							sections.append(section)
-							nosection = False
-						break
-				if nosection:
-					section = content[content.index(sline):]
-					if not self.is_empty_script(section):
-						sections.append(section)
-			if not sections:
-				sections = [content]
-			for k in range(len(sections)):
-				excluded = list(sections[:k] + sections[k + 1:])
-				script   = str(content)
-				for excluded_script in excluded:
-					script = script.replace(excluded_script, "")
-				scripts[str(script).strip()] = 1
-		return (list(scripts))
+    def _get_new_varname(self, argnames, function_body, builtins):
+        retvar_name = ("a" + str(uuid.uuid4())).replace("-","")
+        while (retvar_name in builtins) or (retvar_name in argnames) or (retvar_name in function_body):
+            retvar_name = ("a" + str(uuid.uuid4())).replace("-","")
+        return retvar_name
 
-if __name__ == "__main__":
-	box = PythonSandbox(
-		content  = None,
-		filename = "./code.py"
-	)
-	print (box.split()[2])
+    def call_function(self, name, args, timeout: int, kwargs: dict = None):
+        """
+            Calls a function by name with the provided arguments in a sandboxed environment.
+            Args:
+                name (str): The name of the function to call.
+                args (list): The arguments to pass to the function.
+                kwargs (dict, optional): Keyword arguments to pass to the function.
+                timeout (int): Timeout in seconds for the execution.
+            return:
+                {
+                    "success"  : bool,
+                    "status"   : 200 | 500,
+                    "stdout"   : str,
+                    "stderr"   : str,
+                    "return"   : any,
+                    "error"    : str | None
+                }
+        """
+        function = self.get_function_by_name(name)
+        if not function:
+            raise ValueError(f"Function '{name}' not found in the provided code.")
+        function_body = function['body']
+        if not isinstance(function_body, str) or not function_body.strip():
+            raise ValueError(f"Function '{name}' has no valid body.")
+        [argnames, builtins] = self.map_arguments(args)
+        retvar_name = self._get_new_varname(argnames, function_body, builtins)
+        code = function['body'].rstrip() + "\n" + retvar_name + "=" + function['name'] + "("
+        if argnames:
+            for argname in argnames:
+                code += argname + ", "
+            code = code.strip(" ,")
+        code += ")"
+        result_queue = multiprocessing.Queue()
+        process = multiprocessing.Process(
+            target = _worker_exec,
+            args   = (code, result_queue, builtins, retvar_name)
+        )
+        process.start()
+        process.join(timeout = timeout)
+        if process.is_alive():
+            process.terminate()
+            process.join()
+            return {
+                "success"  : False,
+                "status"   : 500,
+                "stdout"   : "",
+                "stderr"   : "",
+                "return"   : None,
+                "error"    : f"TimeoutError: Execution timed out after {timeout} seconds."
+            }
+        elif process.exitcode == 0:
+            if result_queue.empty():
+                return {
+                    "success"  : False,
+                    "status"   : 500,
+                    "stdout"   : "",
+                    "stderr"   : "",
+                    "return"   : None,
+                    "error"    : "No result was returned from the execution process."
+                }
+            result = result_queue.get()
+            return result
+        return {
+            "success"  : False,
+            "status"   : 500,
+            "stdout"   : "",
+            "stderr"   : "",
+            "return"   : None,
+            "error"    : f"Process exited with code {process.exitcode}."
+        }
