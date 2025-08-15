@@ -13,11 +13,7 @@ class CreateStructureRequest(BaseModel):
             }
         }
     """
-    destination: str = Field(..., description="Destination path for the analysis result")
-    sources: Dict[str, Dict[str, Any]] = Field(
-        ...,
-        description="Dictionary of source files with their destination and max depth for analysis"
-    )
+    folder_paths: List[str] = Field(..., description="List of folder paths to analyze")
 
 class MetadataSampleRequest(BaseModel):
     """

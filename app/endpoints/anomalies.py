@@ -50,19 +50,17 @@ async def create_structure(request: CreateStructureRequest):
     This endpoint processes the request to create a tree structure
     from the provided paths and their configurations.
         {
-            "destination": "s3://path/to/file.json", # or "local-data://" this is the path where the structure will be saved
-            "sources": {
-                "s3://bucket_name/path/to": {
-
-                }
-            }
+            "folder_paths": [
+                "s3://bucket_name/path/to",
+                "path/to"
+            ]
         }
     """
-    global_structure   = {}
-    global_destination = request.destination
+
+    logger.info(f"Received create structure request")
     local_structures   = []
-    for path, path_config in request.sources.items():
-        path_destination = path_config.get("destination")
+    for path in request.folder_paths:
+        path_destination = TreeStructure.get_path_for_raw_tree_structure() + path.replace("://", "_").replace("/", "_") + ".json"
         if isinstance(path_destination, str) and path_destination.strip():
             path_destination = path_destination.strip()
             path_structure   = {}
@@ -80,26 +78,14 @@ async def create_structure(request: CreateStructureRequest):
                 logger.error(f"Failed to save local structure for {path}: {e}")
             local_structures.append(path_structure)
         else:
-            TreeStructure.generate(
-                path   = path,
-                result = global_structure
-            )
-    # save global structure permanently
-    try:
-        TreeStructure.save(
-            structure   = global_structure,
-            destination = global_destination
-        )
-    except Exception as e:
-        logger.error(f"Failed to save global structure: {e}")
-    # just for API:
-    for local_structure in local_structures:
-        for key, val in local_structure:
-            global_structure[key] = val
+            raise ValueError("Invalid path destination")
+
+    paths = TreeStructure.get_all_raw_tree_structure_jsons_path()
+    # logger.info(f"Paths to local structures: {paths}")
     return JSONResponse(
         status_code = 200,
         content = {
-            "response"   : global_structure,
+            "response"   : paths,
             "success"    : True,
             "status"     : 200
         }

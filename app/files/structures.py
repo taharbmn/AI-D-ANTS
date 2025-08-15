@@ -17,7 +17,7 @@ import logging
 import mimetypes
 from typing                  import Dict, List
 from app.utils               import get_local_data_dir, load_system_prompt
-from app.files.files         import FileReader
+from app.files.files         import FileReader, FileWriter
 from app.models.chat         import MetaDataRequest
 from app.endpoints.metadata  import get_metadata
 from app.validators.metadata import MetadataValidator, DescriptionValidator
@@ -40,58 +40,26 @@ class TreeStructure:
         else:
             raise ValueError("Destination must start with 'local-data://'")
         return (False)
+    
+    @staticmethod
+    def get_path_for_raw_tree_structure() -> str:
+        path = "local-data://raw/"
+        return path
 
     @staticmethod
-    def download_from_s3(bucket_name, local_dir, root="/"):
-        s3_client = boto3.client('s3')
-        s3_prefix = ""
-        if root and root != "/":
-            s3_prefix = root
-            if not s3_prefix.endswith('/'):
-                s3_prefix += '/'
-        if not os.path.exists(local_dir):
-            os.makedirs(local_dir)
-            print(f"Created local directory: {local_dir}")
+    def get_all_raw_tree_structure_jsons_path() -> List[str]:
+        """
+        Get all raw tree structure JSON file paths.
+        """
 
-        try:
-            paginator = s3_client.get_paginator('list_objects_v2')
-            pages = paginator.paginate(Bucket=bucket_name, Prefix=s3_prefix)
+        local_dir = get_local_data_dir()
+        json_files = []
+        for root, dirs, files in os.walk(local_dir):
+            for filename in files:
+                if filename.endswith(".json"):
+                    json_files.append(os.path.join(root, filename))
+        return json_files
 
-            if s3_prefix:
-                print(f"Starting download of folder '{s3_prefix}' from bucket '{bucket_name}'...")
-            else:
-                print(f"Starting download of entire bucket '{bucket_name}'...")
-
-            download_count = 0
-            found_files = False
-            for page in pages:
-                if "Contents" in page:
-                    found_files = True
-                    for obj in page['Contents']:
-                        s3_key = obj['Key']
-                        if s3_key.endswith('/'):
-                            continue
-                        relative_path   = os.path.relpath(s3_key, s3_prefix)
-                        local_file_path = os.path.join(local_dir, relative_path)
-                        local_file_dir  = os.path.dirname(local_file_path)
-                        if not os.path.exists(local_file_dir):
-                            os.makedirs(local_file_dir)
-                        print(f"  Downloading: {s3_key} -> {local_file_path}")
-                        s3_client.download_file(bucket_name, s3_key, local_file_path)
-                        download_count += 1
-            
-            print("-" * 30)
-            if not found_files:
-                print(f"Warning: No files found in bucket '{bucket_name}' with prefix '{s3_prefix}'.")
-                print("Please check if the bucket name and path are correct.")
-            else:
-                print(f"Download complete. Total files downloaded: {download_count}")
-
-        except Exception as e:
-            print(f"An unexpected S3 client error occurred: {e}")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-    
     @staticmethod
     def content_type(filename: str) -> str:
         """
@@ -194,14 +162,15 @@ class TreeStructure:
     @staticmethod
     def generate(
         path               : str,
-        base_dir           : str = None,
-        result             : dict[str, str] = None,
-        extensions         : list[str] = None,
-        excluded_extensions: list[str] = None,
-        excluded_names     : list[str] = None,
+        dest               : str            = None,
+        base_dir           : str            = None,
+        result             : dict = None,
+        extensions         : list[str]      = None,
+        excluded_extensions: list[str]      = None,
+        excluded_names     : list[str]      = None,
         callback           = None,
         ignore_hidden      : bool = False,
-        depth              : int  = 1
+        depth              : int  = 0
         ) -> Dict[str, Dict]:
         """
         Recursively find files in a directory and its subdirectories.
@@ -217,28 +186,38 @@ class TreeStructure:
         Returns:
             dict: A dictionary with file paths as keys and relative paths as values.
         """
+
         path = path.strip()
         if path.startswith("s3://"):
             return (TreeStructure._generate_s3(path = path, result = result))
         if path.startswith("local-data://"):
-            path = get_local_data_dir() + path[len("local-data://"):]
-        path = os.path.realpath(path).rstrip("/\\")
+            path = os.path.join(get_local_data_dir(), path[len("local-data://"):].strip("/"))
         if not base_dir:
             base_dir = path
-        if result == None:
+        if result is None:
             result = {}
+
+        if not result.get("types", []):
+            result["types"] = []
+        if not result.get("files", {}):
+            result["files"] = {}
+
         try   : files = os.listdir(path)
         except: files = []
+        if not files:
+            return (result)
         for basename in files:
             if excluded_names and (basename in excluded_names):
                 continue
             if ignore_hidden and basename.startswith('.'):
                 continue
-            if excluded_extensions and (TreeStructure.get_file_extension(basename) in excluded_extensions):
-                continue
-            if extensions and (TreeStructure.get_file_extension(basename) not in extensions):
+            ext = TreeStructure.get_file_extension(basename)
+            if extensions and (ext not in extensions):
                 continue
             filename = os.path.realpath(os.path.join(path, basename))
+            if filename != os.path.join(path, basename):
+                # ignore symlinks
+                continue
             TreeStructure.generate(
                 path                = filename,
                 base_dir            = base_dir,
@@ -247,27 +226,41 @@ class TreeStructure:
                 excluded_extensions = excluded_extensions,
                 excluded_names      = excluded_names,
                 ignore_hidden       = ignore_hidden,
-				depth               = depth + 1
-			)
+                depth               = depth + 1
+            )
             try    : children = os.listdir(filename)
             except : children = []
             if callback:
                 callback(filename)
-            result["local-data://" + filename[len(base_dir):].strip("/\\")] = {
-            	"depth"       : depth,
-            	"name"        : basename,
-            	"type"        : "folder" if os.path.isdir(filename) else "file",
-            	"content_type": None     if os.path.isdir(filename) else TreeStructure.content_type(filename),
-            	"children"    : children if children else None,
-                "keywords"    : None
+            filekey = "file://" + filename
+            filekey = filename
+            result["files"][ filekey ] = {
+                "depth"       : depth,
+                "name"        : basename,
+                "type"        : "folder" if os.path.isdir(filename) else "file",
+                "hash"    : None,  # TO DO: Add file hash calculation
+                "content_type": None     if os.path.isdir(filename) else TreeStructure.content_type(filename),
+                "children"    : children if children else None,
+                "keywords"    : None,
+                #TO DO : ADD field "file_hash" to the structure that has the hash of the file and can help to identify when the file has changed or duplications
+
             }
-        return (result)
+            if ext and (ext not in result["types"]):
+                result["types"].append(ext)
+        if depth < 1:
+            if len(result["types"]) == 1:
+                result["type"] = result["types"][0]
+            if len(result["types"]) > 1:
+                result["type"] = "regular-files"
+        if dest and (depth == 0) and result["files"]:
+            FileWriter(dest).write_json(result)
+        return result
 
     @staticmethod
     def init_metadata(structure: Dict[str, Dict]) -> Dict[str, Dict]:
         for filename, fileinfo in list(structure.items()):
             try:
-                fp     = FileReader(filename, "csv")
+                fp     = FileReader(filename)
                 result = fp.read_dataframe()
             except Exception as e:
                 logger.info(f"Error reading file {filename}: {e}")
