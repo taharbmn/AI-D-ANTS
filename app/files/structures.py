@@ -21,7 +21,7 @@ from app.files.files         import FileReader
 from app.models.chat         import MetaDataRequest
 from app.endpoints.metadata  import get_metadata
 from app.validators.metadata import MetadataValidator, DescriptionValidator
-from app.chatproxy.dbx_client import DatabricksModel
+from app.chatproxy import ChatProxyClient
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -385,7 +385,7 @@ class TreeStructure:
         metadata = element.get("metadata", {})
         if not isinstance(metadata, dict) or not metadata:
             raise ValueError("Element metadata is not a valid dictionary or is empty.")
-        dbx_client = DatabricksModel()
+        dbx_client = ChatProxyClient(base="ollama")
         messages = [
             {
                 "role"    : "user",
@@ -445,7 +445,7 @@ class TreeStructure:
                 )
         if not body["files"] and not body["directories"]:
             raise ValueError("Group is empty or does not contain valid elements.")
-        dbx_client = DatabricksModel()
+        client = ChatProxyClient(base="databricks")
         messages = [
             {
                 "role"    : "user",
@@ -458,11 +458,10 @@ class TreeStructure:
         ]
         system_prompt = load_system_prompt("tree_description")
         for try_count in range(3):
-            response = await dbx_client.send(
+            response = await client.send(
                 messages      = messages,
                 system_prompt = system_prompt,
-                model         = "databricks-meta-llama-3-3-70b-instruct",
-                temperature   = 0.3,
+                temperature   = 0,
                 max_tokens    = 2000
             )
             if response["error"]:

@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 from app.models.chat import (
     MetaDataRequest
 )
-from app.chatproxy.dbx_client import DatabricksModel
+from app.chatproxy import ChatProxyClient
 from dotenv import load_dotenv
 import logging
 import json
@@ -98,13 +98,13 @@ async def get_metadata(
     ]
 
     # Initialize Databricks AI client
-    dbx_client = DatabricksModel()
+    client = ChatProxyClient(base="databricks")
+
     for try_count in range(3):
 
-        response = await dbx_client.send(
+        response = await client.send(
             messages      = messages,
             system_prompt = system_prompt,
-            model         = "databricks-meta-llama-3-3-70b-instruct",
             temperature   = 0.3,
             max_tokens    = 2000
         )
