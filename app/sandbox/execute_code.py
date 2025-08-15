@@ -1,6 +1,9 @@
 import os
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import baisstools
+baisstools.insert_syspath(__file__, matcher = [r"^baiss_.*$"])
+
 import io
 import time
 import uuid
@@ -8,6 +11,7 @@ import json
 import boto3
 import base64
 import logging
+import mimetypes
 import traceback
 import contextlib
 import numpy as np
@@ -15,11 +19,11 @@ import pandas as pd
 import multiprocessing
 # import awswrangler as wr
 from dotenv import load_dotenv
-import matplotlib.pyplot as plt
-from typing import Dict, List, Optional, Union, Any
-from .sandbox import PythonSandbox
-from ..parser.parsing    import clear_varname, clear_varname_dict
-from ..files.files     import FileReader
+from typing import Dict, Any
+from app.sandbox.sandbox import PythonSandbox
+from app.parser.parsing import clear_varname, clear_varname_dict
+from app.files.files import FileReader
+
 # Load environment variables once at module level
 load_dotenv()
 
@@ -52,7 +56,7 @@ SAFE_MODULES = {
 }
 
 SAFE_FROM_MODULES = [
-    # This will be replaced with direct function call
+    "from tools.execute_code import read_pandas_dataFrame_from_source",
 ]
 
 SAFE_BUILTINS = {
@@ -79,6 +83,44 @@ SAFE_BUILTINS = {
     '__import__'  : __import__,
 }
 
+def get_file_extension(filename: str) -> str:
+    """
+    Get the file extension from a filename.
+    Parameters:
+        filename (str): The name of the file.
+    Returns:
+        str: The file extension, or an empty string if no extension is found.
+    """
+    filename = filename.strip()
+    while filename and filename[-1] in ["\\", "/", "."]:
+        filename = filename[:-1].strip()
+    if not filename:
+        return ''
+    basename = filename.split("/")[-1].strip()
+    if not basename:
+        return ''
+    if not ('.' in basename):
+        return ''
+    return basename.split('.')[-1].strip().lower()
+
+def get_file_type(filename: str) -> str:
+    ext = get_file_extension(filename)
+    if ext:
+        return ext
+    else:
+        raise ValueError("File has no extension or is not a valid file type.")
+    return "xlsx"
+    # content_type, _ = mimetypes.guess_type(filename)
+    # if content_type is None:
+    #     content_type = 'text/plain'
+    # if content_type == "text/plain":
+    #     extension = get_file_extension(filename)
+    #     if extension == "csv":
+    #         return 'text/csv'
+    #     elif extension == "json":
+    #         return 'application/json'
+    # return content_type
+
 def _debug_savecode(response: str, code: str) -> str:
 
     logger.info(f"response = {response}")
@@ -103,7 +145,7 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
 
     readfuncs = []
     for i in range(len(python_code)):
-        for funcname in ["read_pandas_dataFrame_from_s3"]:
+        for funcname in ["read_pandas_dataFrame_from_source"]:
             if not (python_code[i:].startswith(funcname)):
                 continue
             if not (python_code[i + len(funcname):].strip().startswith("(")):
@@ -113,7 +155,7 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
                 continue
             readfuncs.append(func_call)
     for readfunc in readfuncs:
-        python_code = python_code.replace(readfunc, f"read_pandas_dataFrame_from_s3('{target_file}', 'csv')")
+        python_code = python_code.replace(readfunc, f"read_pandas_dataFrame_from_source('{target_file}', 'csv')")
 
     python_code  = python_code.replace("```python", "")
     python_code  = python_code.replace("`", "")
@@ -137,8 +179,10 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
         for asname in module_aslist:
             prefix = prefix.strip() + f"\nimport {module_name} as {asname}\n"
 
-    # Add data loading call for the original dataframe
-    prefix += f"\ndf_original = read_pandas_dataFrame_from_s3('{target_file}', 'csv')\n"
+
+    SAFE_FROM_MODULES.append(
+        f"df = read_pandas_dataFrame_from_source('{target_file}', 'csv')"
+    )
 
     for fromline in SAFE_FROM_MODULES:
         prefix = prefix.strip() + f"\n{fromline.strip()}\n"
@@ -148,9 +192,6 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
 def _worker_exec(code: str, result_queue: multiprocessing.Queue):
     session_globals = {
         '__builtins__': SAFE_BUILTINS,
-        'read_pandas_dataFrame_from_s3': read_pandas_dataFrame_from_s3,
-        'pd': pd,
-        'np': np,
     }
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -166,7 +207,7 @@ def _worker_exec(code: str, result_queue: multiprocessing.Queue):
     except Exception as e:
         result_queue.put({
             "success": False,
-            "stdout" : str(stdout.getvalue()).strip(),
+            "stdout" : str(output.getvalue()).strip(),
             "stderr" : str(stderr.getvalue()).strip(),
             "error"  : f"{type(e).__name__}: {str(e)}\n{stderr.getvalue()}",
         })
@@ -180,32 +221,17 @@ def execute_python_code(**kwargs):
     if not data_source_file:
         raise ValueError("No data source file provided for execution")
     start_time = time.time()
-    logger.info(f"=== EXECUTE_PYTHON_CODE START ===")
-    logger.info(f"Data source file: {data_source_file}")
-    logger.info(f"Raw Python code input:\n{python_code}")
-    
-    split_codes = PythonSandbox(content = python_code).split()
-    logger.info(f"PythonSandbox split into {len(split_codes)} code blocks")
-    
-    for i, code in enumerate(split_codes):
-        logger.info(f"=== PROCESSING CODE BLOCK {i+1}/{len(split_codes)} ===")
-        logger.info(f"Original code block {i+1}:\n{code}")
-        
-        cleaned_code = _clean_python_code(code, data_source_file)
-        logger.info(f"=== CLEANED CODE BLOCK {i+1} ===")
-        logger.info(f"Cleaned code to execute:\n{cleaned_code}")
-        
+    for code in PythonSandbox(content = python_code).split():
+        code = _clean_python_code(code, data_source_file)
+        logger.info(f"\n\n{code}\n\n")
         result_queue = multiprocessing.Queue()
         process = multiprocessing.Process(
             target = _worker_exec,
-            args   = (cleaned_code, result_queue)
+            args   = (code, result_queue)
         )
         process.start()
         process.join(timeout = TIMEOUT_SECONDS)
         response = {}
-        
-        logger.info(f"=== EXECUTION RESULT FOR BLOCK {i+1} ===")
-        
         if process.is_alive():
             process.terminate()
             process.join()
@@ -216,17 +242,11 @@ def execute_python_code(**kwargs):
                 "error"  : f"Execution timed out after {TIMEOUT_SECONDS} seconds and was terminated.",
                 "execution_time": TIMEOUT_SECONDS
             }
-            logger.error(f"Block {i+1}: TIMEOUT after {TIMEOUT_SECONDS}s")
-            
         elif process.exitcode == 0:
             if not result_queue.empty():
                 result = result_queue.get()
                 result["execution_time"] = f"{time.time() - start_time:.3f}s"
                 response = result
-                logger.info(f"Block {i+1}: SUCCESS")
-                logger.info(f"Block {i+1} stdout: {result.get('stdout', 'No output')}")
-                if result.get('stderr'):
-                    logger.warning(f"Block {i+1} stderr: {result['stderr']}")
             else:
                 response = {
                     "success": False,
@@ -235,7 +255,6 @@ def execute_python_code(**kwargs):
                     "error"  : "No result was returned from the execution process.",
                     "execution_time": f"{time.time() - start_time:.3f}s"
                 }
-                logger.error(f"Block {i+1}: No result returned from process")
         else:
             response = {
                 "success": False,
@@ -244,38 +263,25 @@ def execute_python_code(**kwargs):
                 "error"  : f"Execution process crashed (exit code: {process.exitcode}).",
                 "execution_time": f"{time.time() - start_time:.3f}s"
             }
-            logger.error(f"Block {i+1}: CRASHED with exit code {process.exitcode}")
-            
-        # _debug_savecode(response, cleaned_code)
-        
+        # _debug_savecode(response, code)
         if response["success"]:
-            logger.info(f"=== EXECUTION COMPLETED SUCCESSFULLY WITH BLOCK {i+1} ===")
             break
-        else:
-            logger.warning(f"Block {i+1} failed, trying next block...")
-            
-    logger.info(f"=== EXECUTE_PYTHON_CODE END ===")
-    logger.info(f"Final response: {response}")
     return (response)
 
-def read_file_from_s3(
-    s3_path: str,
-    file_type: str
+def read_file_from_source(
+    source_path: str,
 ) -> pd.DataFrame:
     """
-    Read file from S3 using AWS Data Wrangler.
-    
+    Read file from source (S3 or local) using appropriate reader based on file type.
     Args:
-        s3_path: S3 path to the file (e.g., 's3://bucket/path/file.csv')
-        file_type: Type of file to read ('csv', 'xlsx', 'parquet')
-        
+        source_path: S3 or local path to the file (e.g., 's3://bucket/path/file.csv' or 'local-data://path/to/file.csv')
     Returns:
         Dict with status, result (DataFrame), error, and execution_time
     """
     start_time = time.perf_counter()
     try:
-        fp = FileReader(s3_path, file_type)
-        logger.info(f"INFO: Reading from path: { s3_path }")
+        fp = FileReader(source_path)
+        logger.info(f"INFO: Reading from path: { source_path }")
         result = fp.read_dataframe()
         logger.info(f"successfull: {result } ")
         return {
@@ -291,13 +297,69 @@ def read_file_from_s3(
             "error": f"{type(e).__name__}: {str(e)}",
             "execution_time": f"{(time.perf_counter() - start_time) * 1000:.3f}ms"
         }
+    return
 
+def read_pandas_dataFrame_from_source(source_path: str):
 
-def read_pandas_dataFrame_from_s3(s3_path: str, file_type: str):
-    response = read_file_from_s3(s3_path, file_type)
+    response = read_file_from_source(source_path)
     if (not response["status"]) or response["error"]:
         return (None)
     return response["result"]
 
+def get_file_metadata_from_source(source_path: str) -> Dict[str, Any]:
+    """
+    Get metadata of file from source (S3 or local).
+    
+    Args:
+        source_path: S3 or local path to the file (e.g., 's3://bucket/path/file.csv' or 'local-data://path/to/file.csv')
+        
+    Returns:
+        Dict with status, result (metadata), error, and execution_time
+    """
 
+    start_time = time.perf_counter()
 
+    file_type = get_file_type(source_path)
+
+    fileinfo = read_file_from_source(source_path)
+
+    try:
+        if (not fileinfo["status"]) or fileinfo["error"]:
+            raise ValueError(fileinfo["error"])
+        df = fileinfo["result"]
+        metadata = {
+            "file_info": {
+                "path": source_path,
+                "file_type": file_type,
+                "shape": {
+                    "rows"   : int(df.shape[0]),
+                    "columns": int(df.shape[1])
+                }
+            },
+            "columns": {
+                "names" : df.columns.tolist(),
+                "dtypes": {str(k): str(v) for k, v in df.dtypes.to_dict().items()}
+            },
+            "sample_data": {
+                "head": json.loads(df.head(3).to_json(orient='records')),
+                "tail": json.loads(df.tail(3).to_json(orient='records'))
+            }
+        }
+        return {
+            "status"   : True,
+            "metadata" : metadata,
+            "error"    : None,
+            "execution_time": f"{(time.perf_counter() - start_time) * 1000:.3f}ms"
+        }
+    except Exception as e:
+        return {
+            "status"  : False,
+            "metadata": None,
+            "error"   : f"Failed to get metadata for {source_path}. Error: {type(e).__name__}: {str(e)}",
+            "execution_time": f"{(time.perf_counter() - start_time) * 1000:.3f}ms"
+        }
+
+def get_file_metadata(**kwargs):
+    file_path = kwargs.get("file_path")
+    result    = get_file_metadata_from_source( file_path )
+    return result

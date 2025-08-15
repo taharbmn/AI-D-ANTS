@@ -22,13 +22,13 @@ Rule 1: The Data Ingestion Mandate
 All data is stored in S3 and is ONLY accessible via a specific, provided function.
 
 Every script you generate MUST begin with this exact line:
-from tools.execute_code import read_pandas_dataFrame_from_s3
+from tools.execute_code import read_pandas_dataFrame_from_source
 
-To load data, you MUST use the read_pandas_dataFrame_from_s3(s3_path: str) function. This function should be called only once at the top of your generated code block.
+To load data, you MUST use the read_pandas_dataFrame_from_source(source_path: str) function. This function should be called only once at the top of your generated code block.
 
-This function returns a pandas DataFrame. The file type argument can be "csv", "xlsx", or "parquet". The s3_path will be provided in the user's prompt.
+This function returns a pandas DataFrame. The file type argument can be "csv", "xlsx", or "parquet". The source_path will be provided in the user's prompt.
 
-ABSOLUTELY PROHIBITED: You must NEVER use pandas.read_csv, pandas.read_excel, open(), Path, or any other file I/O library or function to read data. The read_pandas_dataFrame_from_s3 function is the only permissible method for data loading. Any deviation is a critical failure.
+ABSOLUTELY PROHIBITED: You must NEVER use pandas.read_csv, pandas.read_excel, open(), Path, or any other file I/O library or function to read data. The read_pandas_dataFrame_from_source function is the only permissible method for data loading. Any deviation is a critical failure.
 
 Rule 2: Permitted Python Libraries
 
@@ -56,7 +56,7 @@ No File Writing: Do not attempt to write files to a local disk or back to S3.
 
 III. Assumed Data Context & Schema
 
-The DataFrame loaded by read_pandas_dataFrame_from_s3 will conform to the following schema. Always write your code with these columns and data types in mind.
+The DataFrame loaded by read_pandas_dataFrame_from_source will conform to the following schema. Always write your code with these columns and data types in mind.
 
 ${variables.data_expert.settings.input_schema}
 
@@ -66,7 +66,7 @@ Master Script Structure: Your entire output must be a single string of code. Thi
 
 Imports: All necessary imports (pandas, numpy, etc.) and the mandatory from tools.execute_code ... line.
 
-Global Data Load: A single call to read_pandas_dataFrame_from_s3 to load the data into a DataFrame named df_original.
+Global Data Load: A single call to read_pandas_dataFrame_from_source to load the data into a DataFrame named df_original.
 
 ${os.environ["NUMBER_OF_PYTHON_SCRIPTS"]} Script Blocks: A sequence of ${os.environ["NUMBER_OF_PYTHON_SCRIPTS"]} script blocks.
 
@@ -111,11 +111,11 @@ Your Response (Tool Call):
 ```python
 
   import pandas as pd\nimport numpy as np
-  from tools.execute_code import read_pandas_dataFrame_from_s3
+  from tools.execute_code import read_pandas_dataFrame_from_source
   
   # --- GLOBAL SETUP: LOAD DATA ONCE ---
   try:
-      df_original = read_pandas_dataFrame_from_s3('${variables.data_expert.settings.default_data_source_file}')
+      df_original = read_pandas_dataFrame_from_source('${variables.data_expert.settings.default_data_source_file}')
       # Pre-emptive date conversion for all scripts to use
       df_original['order_date'] = pd.to_datetime(df_original['order_date'], errors='coerce')
   except Exception as e:

@@ -4,37 +4,13 @@ from pydantic import BaseModel, Field
 class CreateStructureRequest(BaseModel):
     """
         {
-            "destination": "",
-            "sources": {
-                "local-data://Category/Product_Catgories.csv": {
-                    "destination": "local-data://my-result.json",
-                    "max_depth"  : None
-                }
-            }
+            "folder_paths": [""]
         }
     """
-    destination: str = Field(..., description="Destination path for the analysis result")
-    sources: Dict[str, Dict[str, Any]] = Field(
-        ...,
-        description="Dictionary of source files with their destination and max depth for analysis"
-    )
+    folder_paths: List[str] = Field(..., description="List of folder paths to analyze")
 
 class MetadataSampleRequest(BaseModel):
     """
-        - Exmaple 1:
-            {
-                "structure": {
-                    "local-data://Category/Product_Catgories.csv": {
-                       ...
-                    }
-                },
-                "destination": "local-data://my-result.json"
-            }
-        - Exmaple 2:
-            {
-                "structure"  : "local-data://path/to/structure.json"
-                "destination": "local-data://my-result.json"
-            }
+        jsons_paths = ["local-data://path/to/raw1.json", "local-data://path/to/raw2.json"]
     """
-    destination: str = Field(..., description="Destination path for the analysis result")
-    structure  : str = Field(..., description="Path to the structure file or a dictionary of structure data")
+    jsons_paths: List[str] = Field(..., description="List of raw JSON file paths")

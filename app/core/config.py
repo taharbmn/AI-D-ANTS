@@ -6,7 +6,7 @@ import pathlib
 # Get the root directory of the project (parent of app directory)
 root_dir = pathlib.Path(__file__).parent.parent.parent
 env_path = root_dir / ".env"
-
+from app.chatproxy import ChatProxyClient
 # Load environment variables from the .env file
 load_dotenv(dotenv_path=env_path)
 
@@ -211,18 +211,21 @@ def initialize_cache_client() -> Dict[str, Any]:
 
     if config.client_type == 'databricks':
         if config.validate_databricks_config():
-            from app.chatproxy.dbx_client import DatabricksModel
-            client_cache['databricks'] = DatabricksModel(
-                model_name=config.model_id,
-                base_url=config.DATABRICKS_BASE_URL
-            )
+            
+            kwargs = {
+                'model_name': config.model_id,
+                'base_url': config.DATABRICKS_BASE_URL
+            }
+            client_cache['databricks'] = ChatProxyClient(base="databricks",**kwargs)
             logger.info("Databricks client initialized successfully")
         else:
             raise ValueError("Invalid Databricks configuration")
 
     elif config.client_type == 'ollama':
-        from app.chatproxy.ollama_client import OllamaClient
-        client_cache['ollama'] = OllamaClient(model_name=config.model_id)
+        kwargs = {
+            'model_name': config.model_id
+        }
+        client_cache['ollama'] = ChatProxyClient(base="ollama", **kwargs)
         logger.info(f"Ollama client initialized successfully with model: {config.model_id}")
 
     logger.info(f"Client cache initialized: {list(client_cache.keys())}")
