@@ -47,12 +47,17 @@ class TreeStructure:
         return path
 
     @staticmethod
+    def get_path_for_processed_tree_structure() -> str:
+        path = "local-data://processed/"
+        return path
+    
+    @staticmethod
     def get_all_raw_tree_structure_jsons_path() -> List[str]:
         """
         Get all raw tree structure JSON file paths.
         """
 
-        local_dir = get_local_data_dir()
+        local_dir = get_local_data_dir() + "/raw/"
         json_files = []
         for root, dirs, files in os.walk(local_dir):
             for filename in files:

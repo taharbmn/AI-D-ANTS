@@ -26,27 +26,6 @@ console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-def parse_bucket_url(path: str):
-    if not path:
-        raise ValueError("File path cannot be empty.")
-    path = str(path).strip()
-    if not ("://" in path):
-        raise ValueError("Invalid file path. Must contain '://'.")
-    if ".." in path:
-        raise ValueError("Invalid Path: File path cannot contain '..'")
-    schema  = path[:path.index("://") + len("://")].lower()
-    path    = path[len(schema):].strip("/")
-    if not (path):
-        raise ValueError("File path cannot be empty after schema.")
-    bucket  = path.split("/")[0]
-    if not (bucket):
-        raise ValueError("File path must contain a bucket name.")
-    path    = path[len(bucket):].strip("/")
-    return [
-        schema.split("://")[0],
-        bucket.strip("/"),
-        path.strip("/")
-    ]
 
 class FileWriter:
     """Class to write files to S3 or local storage."""
@@ -144,6 +123,7 @@ class FileReader:
     """Class to read files from S3 or local storage."""
     def __init__(self, file_path: str, *args, **kwargs):
         file_path = self._clean_file_path(file_path)
+        logger.info(f"Reading file from: {file_path}")
         [
             self._schema,
             self._bucket_name,

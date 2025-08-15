@@ -100,6 +100,7 @@ def load_system_prompt(name: str) -> str:
         f"System prompt '{name}' not found in the system prompt directory."
     )
 
+
 def parse_bucket_url(path: str):
     if not path:
         raise ValueError("File path cannot be empty.")
@@ -116,13 +117,8 @@ def parse_bucket_url(path: str):
     if not (bucket):
         raise ValueError("File path must contain a bucket name.")
     path    = path[len(bucket):].strip("/")
-    schema  = schema.split("://")[0].strip()
-
-    if not (schema in ["s3", "local-data", "file"]):
-        raise ValueError("Invalid schema. Must be 's3', 'local-data', or 'file'.")
-
     return [
-        schema,
+        schema.split("://")[0],
         bucket.strip("/"),
         path.strip("/")
     ]

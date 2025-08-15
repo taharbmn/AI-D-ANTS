@@ -43,7 +43,7 @@ logger.addHandler(console_handler)
 # Create router
 router = APIRouter()
 
-@router.post("/create-structure")
+@router.post("/create-raw-structure")
 async def create_structure(request: CreateStructureRequest):
     """
     Create a structure based on the provided request.
@@ -59,6 +59,7 @@ async def create_structure(request: CreateStructureRequest):
 
     logger.info(f"Received create structure request")
     local_structures   = []
+    list_of_destinations = []
     for path in request.folder_paths:
         path_destination = TreeStructure.get_path_for_raw_tree_structure() + path.replace("://", "_").replace("/", "_") + ".json"
         if isinstance(path_destination, str) and path_destination.strip():
@@ -74,18 +75,18 @@ async def create_structure(request: CreateStructureRequest):
                     structure   = path_structure,
                     destination = path_destination
                 )
+                list_of_destinations.append(path_destination)
             except Exception as e:
                 logger.error(f"Failed to save local structure for {path}: {e}")
             local_structures.append(path_structure)
         else:
             raise ValueError("Invalid path destination")
 
-    paths = TreeStructure.get_all_raw_tree_structure_jsons_path()
     # logger.info(f"Paths to local structures: {paths}")
     return JSONResponse(
         status_code = 200,
         content = {
-            "response"   : paths,
+            "response"   : list_of_destinations,
             "success"    : True,
             "status"     : 200
         }
@@ -93,34 +94,40 @@ async def create_structure(request: CreateStructureRequest):
 
 @router.post("/metadata-sample")
 async def metadata_sample(request: MetadataSampleRequest):
-    destination = request.destination
-    structure   = request.structure.strip()
-    if structure.startswith("{") and structure.endswith("}"):
-        try:
-            structure = json.loads(structure)
-        except Exception as e:
-            logger.error(f"Failed to parse structure JSON: {e}")
-    else:
-        try:
-            structure = json.loads(FileReader.readfile(structure))
-        except Exception as e:
-            logger.error(f"Failed to read structure from file: {e}")
-    # Initialize metadata for the structure
-    structure = TreeStructure.init_metadata(
-        structure = structure
-    )
-    # Save the structure to the destination
-    try:
-        TreeStructure.save(
-            structure   = structure,
-            destination = destination
+    raw_jsons_paths = request.jsons_paths
+    logger.info(f"Received metadata sample request for paths: {raw_jsons_paths}")
+    list_of_destinations = []
+    for raw_json_path in raw_jsons_paths:
+        file_reader = FileReader(raw_json_path)
+        structure   = file_reader.content
+        if isinstance(structure, bytes):
+            structure = structure.decode('utf-8')
+        destination = TreeStructure.get_path_for_processed_tree_structure() + raw_json_path.split("/")[-1]
+        if structure.startswith("{") and structure.endswith("}"):
+            try:
+                structure = json.loads(structure)
+                structure = structure["files"]
+            except Exception as e:
+                logger.error(f"Failed to parse structure JSON: {e}")
+        else:
+            raise ValueError("Invalid structure format")
+        # Initialize metadata for the structure
+        structure = TreeStructure.init_metadata(
+            structure = structure
         )
-    except Exception as e:
-        logger.error(f"Failed to save structure: {e}")
+        # Save the structure to the destination
+        try:
+            TreeStructure.save(
+                structure   = structure,
+                destination = destination
+            )
+            list_of_destinations.append(destination)
+        except Exception as e:
+            logger.error(f"Failed to save structure: {e}")
     return JSONResponse(
         status_code = 200,
         content = {
-            "response"   : structure,
+            "response"   : list_of_destinations,
             "success"    : True,
             "status"     : 200
         }
@@ -128,30 +135,37 @@ async def metadata_sample(request: MetadataSampleRequest):
 
 @router.post("/metadata-description")
 async def metadata_description(request: MetadataSampleRequest):
-    destination = request.destination
-    structure   = request.structure.strip()
-    if structure.startswith("{") and structure.endswith("}"):
-        try:
-            structure = json.loads(structure)
-        except Exception as e:
-            logger.error(f"Failed to parse structure JSON: {e}")
-    else:
-        try:
-            structure = json.loads(FileReader.readfile(structure))
-        except Exception as e:
-            logger.error(f"Failed to read structure from file: {e}")
-    # Initialize metadata for the structure
-    structure = await TreeStructure.update_metadata(
-        structure = structure
-    )
-    # Save the structure to the destination
-    try:
-        TreeStructure.save(
-            structure   = structure,
-            destination = destination
+    processed_jsons = request.jsons_paths
+    list_of_destinations = []
+    for processed_json in processed_jsons:
+        file_reader = FileReader(processed_json)
+        structure   = file_reader.content
+        destination = TreeStructure.get_path_for_processed_tree_structure() + processed_json.split("/")[-1]
+        if isinstance(structure, bytes):
+            structure = structure.decode('utf-8')
+        if structure.startswith("{") and structure.endswith("}"):
+            try:
+                structure = json.loads(structure)
+            except Exception as e:
+                logger.error(f"Failed to parse structure JSON: {e}")
+        else:
+            try:
+                structure = json.loads(FileReader.readfile(structure))
+            except Exception as e:
+                logger.error(f"Failed to read structure from file: {e}")
+        # Initialize metadata for the structure
+        structure = await TreeStructure.update_metadata(
+            structure = structure
         )
-    except Exception as e:
-        logger.error(f"Failed to save structure: {e}")
+        # Save the structure to the destination
+        try:
+            TreeStructure.save(
+                structure   = structure,
+                destination = destination
+            )
+            list_of_destinations.append(destination)
+        except Exception as e:
+            logger.error(f"Failed to save structure: {e}")
     return JSONResponse(
         status_code = 200,
         content = {
@@ -161,32 +175,83 @@ async def metadata_description(request: MetadataSampleRequest):
         }
     )
 
-@router.post("/tree-description")
-async def tree_description(request: MetadataSampleRequest):
-    destination = request.destination
-    structure   = request.structure.strip()
-    if structure.startswith("{") and structure.endswith("}"):
-        try:
-            structure = json.loads(structure)
-        except Exception as e:
-            logger.error(f"Failed to parse structure JSON: {e}")
-    else:
-        try:
-            structure = json.loads(FileReader.readfile(structure))
-        except Exception as e:
-            logger.error(f"Failed to read structure from file: {e}")
-    # Initialize metadata for the structure
-    structure = await TreeStructure.tree_description(
-        structure = structure
-    )
-    # Save the structure to the destination
+@router.post("/create_tree_structure")
+async def create_tree_structure(request: CreateStructureRequest):
+    folder_paths = request.folder_paths
+    logger.info(f"Creating tree structure for paths: {folder_paths}")
     try:
-        TreeStructure.save(
-            structure   = structure,
-            destination = destination
+        json_folder_path = CreateStructureRequest(
+            folder_paths = folder_paths
         )
+        raw_tree_structure_response = await create_structure(json_folder_path)
+        # raw_paths = raw_tree_structure.get("response", [])
+        # Extract the actual content from the JSONResponse
+        if hasattr(raw_tree_structure_response, 'body'):
+            # For JSONResponse, get the body content
+            raw_tree_structure_content = json.loads(raw_tree_structure_response.body.decode('utf-8'))
+        else:
+            # If it's already a dict, use it directly
+            raw_tree_structure_content = raw_tree_structure_response
+            
+        raw_paths = raw_tree_structure_content.get("response", [])
+        logger.info(f"Raw tree structure created for paths: {raw_paths}")
+
+        metadata_sample_request = MetadataSampleRequest(
+            jsons_paths = raw_paths
+        )
+
+        try:
+            # Process the metadata sample request as needed
+            metadata_description_response = await metadata_sample(metadata_sample_request)
+        except Exception as e:
+            logger.error(f"Failed to process metadata sample request: {e}")
+            return JSONResponse(
+                status_code = 500,
+                content = {
+                    "response"   : e,
+                    "success"    : False,
+                    "status"     : 500
+                }
+            )
+        if hasattr(metadata_description_response, 'body'):
+            # For JSONResponse, get the body content
+            metadata_description_content = json.loads(metadata_description_response.body.decode('utf-8'))
+
+        processed_paths = metadata_description_content.get("response", [])
+
+        metadata_description_request = MetadataSampleRequest(
+            jsons_paths = processed_paths
+        )
+        try:
+            metadata_description_response = await metadata_description(metadata_description_request)
+        except Exception as e:
+            logger.error(f"Failed to process metadata description request: {e}")
+            return JSONResponse(
+                status_code = 500,
+                content = {
+                    "response"   : e,
+                    "success"    : False,
+                    "status"     : 500
+                }
+            )
+
+        if hasattr(metadata_description_response, 'body'):
+            # For JSONResponse, get the body content
+            metadata_description_content = json.loads(metadata_description_response.body.decode('utf-8'))
+
+        structure = metadata_description_content.get("response", [])
+
     except Exception as e:
-        logger.error(f"Failed to save structure: {e}")
+        logger.error(f"Failed to create tree structure: {e}")
+        return JSONResponse(
+            status_code = 500,
+            content = {
+                "response"   : "Failed to create tree structure",
+                "success"    : False,
+                "status"     : 500
+            }
+        )
+
     return JSONResponse(
         status_code = 200,
         content = {
