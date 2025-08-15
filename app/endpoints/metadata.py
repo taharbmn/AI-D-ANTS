@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 from app.models.chat import (
     MetaDataRequest
 )
-from app.chatproxy import ChatProxyClient
+from app.core.config import client_cache
 from dotenv import load_dotenv
 import logging
 import json
@@ -75,6 +75,7 @@ async def get_metadata(
     
     # Get system prompt from metadata.md file
     system_prompt = get_metadata_system_prompt()
+    # logger.info(f"Using system prompt: {system_prompt}")
     
     # Prepare messages for AI
     messages = [
@@ -98,23 +99,24 @@ async def get_metadata(
     ]
 
     # Initialize Databricks AI client
-    client = ChatProxyClient(base="databricks")
+    client = client_cache.get("ollama")
 
     for try_count in range(3):
 
         response = await client.send(
             messages      = messages,
             system_prompt = system_prompt,
-            temperature   = 0.3,
+            temperature   = 0,
             max_tokens    = 2000
         )
+        logger.info(f"AI Response: {json.dumps(response, indent=2)}")
         if response["error"]:
             logger.error(f"Error in metadata response: {response.get('message', 'Unknown error')}")
             time.sleep(1)
             continue
         try:
             validator = MetadataValidator(
-                text           = response["content"],
+                text           = response["response"]["messages"][0]["content"][0]["text"],
                 column_names   = file_metadata_result["metadata"]["columns"]["names"],
                 raise_on_error = True
             )

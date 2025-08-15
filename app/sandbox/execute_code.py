@@ -20,7 +20,7 @@ import multiprocessing
 # import awswrangler as wr
 from dotenv import load_dotenv
 from typing import Dict, Any
-from app.sandbox.sandbox import sandbox
+from app.sandbox.sandbox import PythonSandbox
 from app.parser.parsing import clear_varname, clear_varname_dict
 from app.files.files import FileReader
 
@@ -221,7 +221,7 @@ def execute_python_code(**kwargs):
     if not data_source_file:
         raise ValueError("No data source file provided for execution")
     start_time = time.time()
-    for code in sandbox.PythonSandbox(content = python_code).split():
+    for code in PythonSandbox(content = python_code).split():
         code = _clean_python_code(code, data_source_file)
         logger.info(f"\n\n{code}\n\n")
         result_queue = multiprocessing.Queue()

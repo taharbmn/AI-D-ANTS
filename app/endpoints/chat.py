@@ -77,6 +77,7 @@ async def chat_endpoint(request: ChatRequest):
                 temperature=0.1,
                 max_tokens=5000
             )
+            logging.info(f"AI Response: {json.dumps(response, indent=2)}")
 
             ai_messages = response["response"].get("messages")
             last_ai_message = ai_messages[-1]
