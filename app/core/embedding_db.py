@@ -2,9 +2,10 @@ import os
 from typing import Optional
 
 from app.embedding_db import setup_database, DatabaseType, BaseDBClient, get_default_connection_string
-from app.core.config import config
 import logging
 logger = logging.getLogger(__name__)
+
+
 # Global embedding database instance
 _embedding_db: Optional[BaseDBClient] = None
 
@@ -43,6 +44,7 @@ def init_embedding_db() -> None:
         # Ensure directory exists
         db_dir = os.path.dirname(db_path)
         if db_dir and not os.path.exists(db_dir):
+            logger.info(f"Database directory {db_dir} does not exist. Creating it.")
             os.makedirs(db_dir, exist_ok=True)
         
         # Initialize database with schema creation
