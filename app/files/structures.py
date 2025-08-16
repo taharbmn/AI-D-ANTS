@@ -170,7 +170,7 @@ class TreeStructure:
         dest               : str            = None,
         base_dir           : str            = None,
         result             : dict = None,
-        extensions         : list[str]      = None,
+        extensions         : list[str]      = ["csv", "xlsx"],
         excluded_extensions: list[str]      = None,
         excluded_names     : list[str]      = None,
         callback           = None,

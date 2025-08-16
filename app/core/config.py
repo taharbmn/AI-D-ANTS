@@ -57,6 +57,9 @@ class Config:
     MODEL_TYPE: str = os.environ.get('MODEL_TYPE', '')
     OLLAMA_DEFAULT_MODEL: str = os.environ.get('OLLAMA_DEFAULT_MODEL', 'qwen3:1.7b')
 
+    # Embedding Database Configuration
+    EMBEDDING_CHUNK_SIZE: int = int(os.environ.get('EMBEDDING_CHUNK_SIZE', '1000'))
+
     if MODEL_TYPE.lower() == 'ollama':
         client_type: str = "ollama"
         model_id: str = OLLAMA_DEFAULT_MODEL
