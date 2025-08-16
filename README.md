@@ -119,17 +119,6 @@ cd frontend
 npm run dev
 ```
 
-### API Endpoints
-
-The application provides several key endpoints:
-
-- `GET /` - Welcome message and API information
-- `GET /health` - Health check endpoint
-- `POST /chat` - Interactive chat with your data
-- `GET /conversations` - Retrieve chat conversations
-- `POST /anomalies` - Detect anomalies in your data
-- `GET /metadata` - File and folder metadata
-
 ### Using Different AI Models
 
 **Ollama (Local):**
