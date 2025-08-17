@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,3 +27,26 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Anomalies API functions
+export interface CreateTreeStructureRequest {
+  folder_paths: string[];
+}
+
+export interface TreeStructureResponse {
+  response: any;
+  success: boolean;
+  status: number;
+}
+
+export const createTreeStructure = async (folderPaths: string[]): Promise<TreeStructureResponse> => {
+  try {
+    const response = await api.post('/anomalies/create_tree_structure', {
+      folder_paths: folderPaths
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating tree structure:', error);
+    throw error;
+  }
+};

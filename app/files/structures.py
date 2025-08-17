@@ -170,7 +170,7 @@ class TreeStructure:
         dest               : str            = None,
         base_dir           : str            = None,
         result             : dict = None,
-        extensions         : list[str]      = None,
+        extensions         : list[str]      = ["csv", "xlsx"],
         excluded_extensions: list[str]      = None,
         excluded_names     : list[str]      = None,
         callback           = None,
@@ -179,86 +179,104 @@ class TreeStructure:
         ) -> Dict[str, Dict]:
         """
         Recursively find files in a directory and its subdirectories.
-        Parameters:
-            dirname (str): The directory to search in.
-            base_dir (str): The base directory for relative paths.
-            result (dict): A dictionary to store the results.
-            extensions (list): List of file extensions to include.
-            excluded_extensions (list): List of file extensions to exclude.
-            excluded_names (list): List of filenames to exclude.
-            callback: A callback function to call for each found file.
-            ignore_hidden (bool): Whether to ignore hidden files.
-        Returns:
-            dict: A dictionary with file paths as keys and relative paths as values.
         """
-
+    
         path = path.strip()
         if path.startswith("s3://"):
             return (TreeStructure._generate_s3(path = path, result = result))
         if path.startswith("local-data://"):
             path = os.path.join(get_local_data_dir(), path[len("local-data://"):].strip("/"))
+    
+        # Normalize path for cross-platform compatibility
+        path = os.path.normpath(path)
+    
         if not base_dir:
             base_dir = path
         if result is None:
             result = {}
-
+    
         if not result.get("types", []):
             result["types"] = []
         if not result.get("files", {}):
             result["files"] = {}
-
-        try   : files = os.listdir(path)
-        except: files = []
+    
+        try:
+            files = os.listdir(path)
+        except:
+            files = []
+    
         if not files:
-            return (result)
+            return result
+    
         for basename in files:
             if excluded_names and (basename in excluded_names):
                 continue
             if ignore_hidden and basename.startswith('.'):
                 continue
+            
+            filename = os.path.join(path, basename)
+            filename = os.path.normpath(filename)  # Normalize for Windows
+    
+            # Skip symbolic links
+            if os.path.islink(filename):
+                continue
+            
             ext = TreeStructure.get_file_extension(basename)
-            if extensions and (ext not in extensions):
-                continue
-            filename = os.path.realpath(os.path.join(path, basename))
-            if filename != os.path.join(path, basename):
-                # ignore symlinks
-                continue
-            TreeStructure.generate(
-                path                = filename,
-                base_dir            = base_dir,
-                result              = result,
-                extensions          = extensions,
-                excluded_extensions = excluded_extensions,
-                excluded_names      = excluded_names,
-                ignore_hidden       = ignore_hidden,
-                depth               = depth + 1
-            )
-            try    : children = os.listdir(filename)
-            except : children = []
+    
+            # For files, check extension filter
+            if os.path.isfile(filename):
+                if extensions and (ext not in extensions):
+                    continue
+                if excluded_extensions and (ext in excluded_extensions):
+                    continue
+                
+            # Only recurse into directories
+            if os.path.isdir(filename):
+                TreeStructure.generate(
+                    path                = filename,
+                    base_dir            = base_dir,
+                    result              = result,
+                    extensions          = extensions,
+                    excluded_extensions = excluded_extensions,
+                    excluded_names      = excluded_names,
+                    callback            = callback,
+                    ignore_hidden       = ignore_hidden,
+                    depth               = depth + 1
+                )
+    
+            try:
+                children = os.listdir(filename) if os.path.isdir(filename) else []
+            except:
+                children = []
+    
             if callback:
                 callback(filename)
-            filekey = "file://" + filename
-            filekey = filename
-            result["files"][ filekey ] = {
+    
+            # Use consistent file key format
+            filekey = filename.replace(os.sep, '/')  # Normalize separators for consistency
+    
+            result["files"][filekey] = {
                 "depth"       : depth,
                 "name"        : basename,
                 "type"        : "folder" if os.path.isdir(filename) else "file",
-                "hash"    : None,  # TO DO: Add file hash calculation
-                "content_type": None     if os.path.isdir(filename) else TreeStructure.content_type(filename),
+                "hash"        : None,
+                "content_type": None if os.path.isdir(filename) else TreeStructure.content_type(filename),
                 "children"    : children if children else None,
                 "keywords"    : None,
-                #TO DO : ADD field "file_hash" to the structure that has the hash of the file and can help to identify when the file has changed or duplications
-
             }
+    
             if ext and (ext not in result["types"]):
                 result["types"].append(ext)
+    
         if depth < 1:
             if len(result["types"]) == 1:
                 result["type"] = result["types"][0]
             if len(result["types"]) > 1:
                 result["type"] = "regular-files"
+    
         if dest and (depth == 0) and result["files"]:
             FileWriter(dest).write_json(result)
+    
         return result
 
     @staticmethod
