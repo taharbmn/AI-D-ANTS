@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from typing import Dict
 from app.endpoints.router import api_router
 from app.core.config import initialize_config, load_system_prompts, initialize_cache_client
+from app.core.embedding_db import init_embedding_db, close_embedding_db
 import logging
 import sys
 
@@ -40,6 +41,9 @@ async def lifespan(app: FastAPI):
         # Initialize and validate clients
         client_cache = initialize_cache_client()
 
+        # Initialize embedding database
+        init_embedding_db()
+
         logger.info("loaded system prompts: %s", len(system_prompts))
         logger.info("Application startup complete with config: %s", config)
         logger.info("Client cache initialized with clients: %s", client_cache)
@@ -52,6 +56,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down application...")
+    
+    # Close embedding database connection
+    close_embedding_db()
 
 # Create FastAPI app with default values
 app = FastAPI(

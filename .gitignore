@@ -206,3 +206,8 @@ marimo/_lsp/
 __marimo__/
 local-data/raw/*.json
 local-data/processed/*.json
+local-data/.DS_Store
+
+local-data/db/*
+.vscode/settings.json
+.DS_Store

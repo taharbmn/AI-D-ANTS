@@ -186,10 +186,10 @@ class TreeStructure:
             return (TreeStructure._generate_s3(path = path, result = result))
         if path.startswith("local-data://"):
             path = os.path.join(get_local_data_dir(), path[len("local-data://"):].strip("/"))
-    
+        
         # Normalize path for cross-platform compatibility
         path = os.path.normpath(path)
-    
+        
         if not base_dir:
             base_dir = path
         if result is None:
@@ -204,7 +204,7 @@ class TreeStructure:
             files = os.listdir(path)
         except:
             files = []
-    
+        
         if not files:
             return result
     
@@ -216,13 +216,13 @@ class TreeStructure:
             
             filename = os.path.join(path, basename)
             filename = os.path.normpath(filename)  # Normalize for Windows
-    
+            
             # Skip symbolic links
             if os.path.islink(filename):
                 continue
-            
+                
             ext = TreeStructure.get_file_extension(basename)
-    
+            
             # For files, check extension filter
             if os.path.isfile(filename):
                 if extensions and (ext not in extensions):
@@ -254,7 +254,7 @@ class TreeStructure:
     
             # Use consistent file key format
             filekey = filename.replace(os.sep, '/')  # Normalize separators for consistency
-    
+            
             result["files"][filekey] = {
                 "depth"       : depth,
                 "name"        : basename,
@@ -264,7 +264,7 @@ class TreeStructure:
                 "children"    : children if children else None,
                 "keywords"    : None,
             }
-    
+            
             if ext and (ext not in result["types"]):
                 result["types"].append(ext)
     
@@ -273,10 +273,10 @@ class TreeStructure:
                 result["type"] = result["types"][0]
             if len(result["types"]) > 1:
                 result["type"] = "regular-files"
-    
+        
         if dest and (depth == 0) and result["files"]:
             FileWriter(dest).write_json(result)
-    
+        
         return result
 
     @staticmethod

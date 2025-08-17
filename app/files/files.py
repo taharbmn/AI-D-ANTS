@@ -105,10 +105,10 @@ class FileWriter:
             _key = self._relative_path[len(bucket_name):].strip("/")
             try:
                 self._s3_client.put_object(Bucket=bucket_name, Key=_key, Body=content)
-                logger.info(f"✅ File saved successfully to s3://{bucket_name}/{_key}")
+                logger.info(f"File saved successfully to s3://{bucket_name}/{_key}")
                 return True
             except Exception as e:
-                logger.info(f"❌ Error saving file to S3: {e}")
+                logger.info(f"Error saving file to S3: {e}")
                 return False
             return False
 
@@ -175,8 +175,31 @@ class FileReader:
             raise ValueError("Invalid Path: File path cannot contain '..'")
         if not file_path:
             raise ValueError("File path cannot be empty.")
+
+        # Handle already formatted URIs
+        if file_path.startswith(('s3://', 'local-data://', 'file://')):
+            return file_path
+
+        # Convert Windows paths to Unix-style for consistency
+        if os.name == 'nt' or '\\' in file_path:
+            # Handle Windows paths
+            if file_path.startswith('\\\\'):
+                # UNC path
+                file_path = 'file:' + file_path.replace('\\', '/')
+            elif len(file_path) >= 2 and file_path[1] == ':':
+                # Drive letter path (C:, D:, etc.)
+                file_path = 'file:///' + file_path.replace('\\', '/')
+            else:
+                file_path = file_path.replace('\\', '/')
+
+        # Add file:// prefix for absolute paths
         if file_path.startswith("/"):
             file_path = "file://" + file_path
+        elif not file_path.startswith(('s3://', 'local-data://', 'file://')):
+            # Relative path - convert to absolute
+            abs_path = os.path.abspath(file_path).replace('\\', '/')
+            file_path = "file:///" + abs_path if os.name == 'nt' else "file://" + abs_path
+
         return file_path
 
     @property
