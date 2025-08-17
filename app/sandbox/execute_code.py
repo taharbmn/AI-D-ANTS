@@ -56,7 +56,7 @@ SAFE_MODULES = {
 }
 
 SAFE_FROM_MODULES = [
-    "from tools.execute_code import read_pandas_dataFrame_from_source",
+    "from app.sandbox.execute_code import read_pandas_dataFrame_from_source",
 ]
 
 SAFE_BUILTINS = {
@@ -155,7 +155,7 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
                 continue
             readfuncs.append(func_call)
     for readfunc in readfuncs:
-        python_code = python_code.replace(readfunc, f"read_pandas_dataFrame_from_source('{target_file}', 'csv')")
+        python_code = python_code.replace(readfunc, f"read_pandas_dataFrame_from_source('{target_file}')")
 
     python_code  = python_code.replace("```python", "")
     python_code  = python_code.replace("`", "")
@@ -181,7 +181,7 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
 
 
     SAFE_FROM_MODULES.append(
-        f"df = read_pandas_dataFrame_from_source('{target_file}', 'csv')"
+        f"df_original = read_pandas_dataFrame_from_source('{target_file}')"
     )
 
     for fromline in SAFE_FROM_MODULES:
@@ -221,6 +221,7 @@ def execute_python_code(**kwargs):
     if not data_source_file:
         raise ValueError("No data source file provided for execution")
     start_time = time.time()
+    logging.info(f"Executing Python code:\n{python_code}")
     for code in PythonSandbox(content = python_code).split():
         code = _clean_python_code(code, data_source_file)
         logger.info(f"\n\n{code}\n\n")

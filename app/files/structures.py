@@ -52,18 +52,38 @@ class TreeStructure:
         return path
     
     @staticmethod
-    def get_all_raw_tree_structure_jsons_path() -> List[str]:
+    def get_all_tree_structure_jsons_path(step: str = "raw") -> List[str]:
         """
-        Get all raw tree structure JSON file paths.
+        Get all tree structure JSON file paths.
+        step: The step of the tree structure (e.g., "raw" or "processed").
         """
 
-        local_dir = get_local_data_dir() + "/raw/"
+        local_dir = get_local_data_dir() + f"/{step}/"
         json_files = []
         for root, dirs, files in os.walk(local_dir):
             for filename in files:
                 if filename.endswith(".json"):
                     json_files.append(os.path.join(root, filename))
         return json_files
+
+    @staticmethod
+    def read_all_json_structure(
+        step: str = "processed"
+    ) -> Dict[str, Dict]:
+        """
+        Read all JSON tree structures from the specified step.
+        step: The step of the tree structure (e.g., "raw" or "processed").
+        """
+        json_files = TreeStructure.get_all_tree_structure_jsons_path(step)
+        structures = {}
+        for json_file in json_files:
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    structure = json.load(f)
+                    structures.update(structure)
+            except Exception as e:
+                logger.error(f"Error reading {json_file}: {e}")
+        return structures
 
     @staticmethod
     def content_type(filename: str) -> str:
@@ -180,34 +200,34 @@ class TreeStructure:
         """
         Recursively find files in a directory and its subdirectories.
         """
-    
+
         path = path.strip()
         if path.startswith("s3://"):
             return (TreeStructure._generate_s3(path = path, result = result))
         if path.startswith("local-data://"):
             path = os.path.join(get_local_data_dir(), path[len("local-data://"):].strip("/"))
-        
+
         # Normalize path for cross-platform compatibility
         path = os.path.normpath(path)
-        
+
         if not base_dir:
             base_dir = path
         if result is None:
             result = {}
-    
+
         if not result.get("types", []):
             result["types"] = []
         if not result.get("files", {}):
             result["files"] = {}
-    
+
         try:
             files = os.listdir(path)
         except:
             files = []
-        
+
         if not files:
             return result
-    
+
         for basename in files:
             if excluded_names and (basename in excluded_names):
                 continue
@@ -216,20 +236,20 @@ class TreeStructure:
             
             filename = os.path.join(path, basename)
             filename = os.path.normpath(filename)  # Normalize for Windows
-            
+
             # Skip symbolic links
             if os.path.islink(filename):
                 continue
-                
+
             ext = TreeStructure.get_file_extension(basename)
-            
+
             # For files, check extension filter
             if os.path.isfile(filename):
                 if extensions and (ext not in extensions):
                     continue
                 if excluded_extensions and (ext in excluded_extensions):
                     continue
-                
+
             # Only recurse into directories
             if os.path.isdir(filename):
                 TreeStructure.generate(
@@ -243,18 +263,18 @@ class TreeStructure:
                     ignore_hidden       = ignore_hidden,
                     depth               = depth + 1
                 )
-    
+
             try:
                 children = os.listdir(filename) if os.path.isdir(filename) else []
             except:
                 children = []
-    
+
             if callback:
                 callback(filename)
-    
+
             # Use consistent file key format
             filekey = filename.replace(os.sep, '/')  # Normalize separators for consistency
-            
+
             result["files"][filekey] = {
                 "depth"       : depth,
                 "name"        : basename,
@@ -264,19 +284,19 @@ class TreeStructure:
                 "children"    : children if children else None,
                 "keywords"    : None,
             }
-            
+
             if ext and (ext not in result["types"]):
                 result["types"].append(ext)
-    
+
         if depth < 1:
             if len(result["types"]) == 1:
                 result["type"] = result["types"][0]
             if len(result["types"]) > 1:
                 result["type"] = "regular-files"
-        
+
         if dest and (depth == 0) and result["files"]:
             FileWriter(dest).write_json(result)
-        
+
         return result
 
     @staticmethod
