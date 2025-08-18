@@ -210,6 +210,12 @@ class TreeStructure:
         # Normalize path for cross-platform compatibility
         path = os.path.normpath(path)
 
+        # Check if path exists
+        if not os.path.exists(path):
+            logging.warning(f"Path does not exist: {path}")
+            # TODO: Handle this case better
+            return result
+
         if not base_dir:
             base_dir = path
         if result is None:
@@ -220,6 +226,59 @@ class TreeStructure:
         if not result.get("files", {}):
             result["files"] = {}
 
+
+        # Handle single file case
+        if os.path.isfile(path):
+            basename = os.path.basename(path)
+
+            # Apply filters for single file
+            if excluded_names and (basename in excluded_names):
+                return result
+            if ignore_hidden and basename.startswith('.'):
+                return result
+
+            ext = TreeStructure.get_file_extension(basename)
+
+            # Check extension filters
+            if extensions and (ext not in extensions):
+                return result
+            if excluded_extensions and (ext in excluded_extensions):
+                return result
+
+            # Use consistent file key format
+            filekey = path.replace(os.sep, '/')
+
+            result["files"][filekey] = {
+                "depth"       : depth,
+                "name"        : basename,
+                "type"        : "file",
+                "hash"        : None,
+                "content_type": TreeStructure.content_type(path),
+                "children"    : None,
+                "keywords"    : None,
+            }
+
+            if ext and (ext not in result["types"]):
+                result["types"].append(ext)
+
+            # Set result type for single file
+            if len(result["types"]) == 1:
+                result["type"] = result["types"][0]
+            elif len(result["types"]) > 1:
+                result["type"] = "regular-files"
+
+            # Save if destination specified
+            if dest and (depth == 0) and result["files"]:
+                FileWriter(dest).write_json(result)
+
+            # Call callback if provided
+            if callback:
+                callback(path)
+
+            return result
+        
+
+        # handle directory listing
         try:
             files = os.listdir(path)
         except:

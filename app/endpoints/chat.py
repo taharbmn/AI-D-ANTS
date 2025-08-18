@@ -1,10 +1,5 @@
 import os
 import sys
-
-
-
-
-
 sys.path.insert(0, 
 	os.path.dirname(
 		os.path.dirname(
@@ -22,12 +17,14 @@ import logging
 from fastapi import APIRouter, HTTPException
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
-
+import time
 
 from app.files.structures import TreeStructure
-from app.models.chat import ChatRequest, DataRequest, AnalyzeRequest, MetaDataRequest
+from app.models.chat import ChatRequest, DataRequest
+from app.models.anomalies import CreateStructureRequest
 from app.core.config import system_prompts, client_cache
 from app.endpoints.metadata import get_file_metadata
+from app.endpoints.anomalies import create_tree_structure
 from app.sandbox.execute_code import execute_python_code
 
 from app.extractors.json_extractor import JsonExtractor
@@ -38,7 +35,7 @@ router = APIRouter()
 import uuid
 load_dotenv()
 
-@router.post("/chat")
+@router.post("/brain")
 async def chat_endpoint(request: ChatRequest):
     
 
@@ -49,28 +46,40 @@ async def chat_endpoint(request: ChatRequest):
 
         available_datasets = []
         mapping_id_path = {}
+        metadata_details = {}
 
         if request.available_datasets and len(request.available_datasets) > 0:
-            processed_tree_structure = TreeStructure.read_all_json_structure(step="processed")
+            try:
+                processed_tree_structure = TreeStructure.read_all_json_structure(step="processed")
+            except FileNotFoundError:
+                raise HTTPException(status_code=404, detail="Processed tree structure not found. Please ensure the structure is generated before using this endpoint.")
+
             for path in request.available_datasets:
                 if path in processed_tree_structure:
                     dataset_info = processed_tree_structure[path]
-                    metadata = dataset_info.get("metadata")
-                    columns = dataset_info.get("columnsDescription", [])
-                    description = dataset_info.get("description", "")
-                    name = dataset_info.get("name", "")
-                    id = str(uuid.uuid4())
-
-                    available_datasets.append({
-                        "id": id,
-                        "name": name,
-                        "description": description,
-                        "columns": columns,
-                        
-                    })
-                    mapping_id_path[id] = path
                 else:
-                    raise ValueError(f"Dataset path {path} not found in processed tree structure.")
+                    # TODO: Enhance this part better to be able to handle when files have been updated as well
+                    request_input = CreateStructureRequest(
+                        folder_paths=[path]
+                    )
+                    create_structure = await create_tree_structure(request_input)
+                    create_structure_json = json.loads(create_structure.body.decode('utf-8'))
+                    dataset_info = create_structure_json["response"][path]
+                metadata = dataset_info.get("metadata")
+                columns = dataset_info.get("columnsDescription", [])
+                description = dataset_info.get("description", "")
+                name = dataset_info.get("name", "")
+                id = str(uuid.uuid4())
+                available_datasets.append({
+                    "id": id,
+                    "name": name,
+                    "description": description,
+                    "columns": columns,
+                    
+                })
+                mapping_id_path[id] = path
+                metadata_details[id] = metadata
+
 
         else:
             available_datasets.append({"empty": True, "message": "No available datasets found."})
@@ -79,6 +88,7 @@ async def chat_endpoint(request: ChatRequest):
         brain_system_prompts = system_prompts.get("brain")
 
         brain_system_prompts = brain_system_prompts.replace("${variables.brain.settings.available_datasets}", json.dumps(available_datasets))
+        brain_system_prompts = brain_system_prompts.replace("${variables.data_expert.settings.current_date}", time.strftime("%Y-%m-%d"))
         # logging.info(f"Brain system prompts: {brain_system_prompts}")
         messages = []
 
@@ -99,6 +109,8 @@ async def chat_endpoint(request: ChatRequest):
 
         max_conversation_turns = 3
         current_turn = 0
+        codes = []
+        sources = []
 
         while current_turn < max_conversation_turns:
             current_turn += 1
@@ -110,7 +122,6 @@ async def chat_endpoint(request: ChatRequest):
                     temperature=0.1,
                     max_tokens=5000
                 )
-                logging.info(f"AI Response: {json.dumps(response, indent=2)}")
 
                 ai_messages = response["response"].get("messages")
                 last_ai_message = ai_messages[-1]["content"][0]["text"]
@@ -130,10 +141,10 @@ async def chat_endpoint(request: ChatRequest):
                         if not id:
                             raise HTTPException(status_code=400, detail="Agent must include 'id' field")
                         path = mapping_id_path[id]
+                        metadata = metadata_details[id]
                         if not path:
                             raise HTTPException(status_code=400, detail=f"Path for agent with id {id} not found")
-                        logging.info(f"Agent {id} is mapped to path: {path}")
-                        question = agent.get("question", "")
+                        question = agent.get("question")
                         if not question:
                             raise HTTPException(status_code=400, detail="Agent must include 'question' field")
                         data_request = DataRequest(
@@ -141,28 +152,26 @@ async def chat_endpoint(request: ChatRequest):
                             message={
                                 "role": "user",
                                 "content": str(question)
-                            }
+                            },
+                            metadata=metadata
                         )
+                        sources.append(path)
 
                         data_response = await create_conversation_with_data_expert(data_request)
                         logging.info(f"Data response for agent {id}: {data_response}")
 
                         if not data_response:
                             raise HTTPException(status_code=500, detail="No response from data expert")
-                        logging.info(f"Data expert response for agent {id}")
 
                         data_response_json = json.loads(data_response.body.decode('utf-8'))
-                        logging.info(f"Data response JSON for agent {data_response_json}")
 
                         if data_response_json.get("success"):
-                            logging.info(f"Data expert successfully processed request for agent {id}")
+                            code = data_response_json["code"]
                             data_ai_messages = data_response_json["response"].get("messages")
-                            logging.info(f"Data AI messages for agent {id}: {json.dumps(data_ai_messages, indent=2)}")
                             data_response_text = data_ai_messages[-1]["content"][0]["text"]
-                            logging.info(f"Data response text for agent {id}: {data_response_text}")
                             message_to_brain = XmlExtractor.create_agent_answer_block(data_response_text)
+                            codes.append(code)
                         else:
-                            logging.error(f"Data expert failed to process request for agent {id}: {data_response_json.get('error')}")
                             message_to_brain = XmlExtractor.create_agent_answer_block("The request have failed, DO NOT TRY AGAIN, REPORT TO THE USER THAT THERE WAS A PROBLEM IN PROCESSING THE FILE")
                         messages.append({
                             "role": "user",
@@ -177,6 +186,8 @@ async def chat_endpoint(request: ChatRequest):
                         "status": 200,
                         "success": True,
                         "response": {"messages": [last_ai_message]},
+                        "codes": codes,
+                        "sources": sources,
                         "error": "",
                         "stop_reason": "end_turn"
                         }
@@ -186,6 +197,8 @@ async def chat_endpoint(request: ChatRequest):
                     "status": 500,
                     "success": False,
                     "response": {},
+                    "codes": codes,
+                    "sources": sources,
                     "error": str(e),
                     "stop_reason": "error"
                 }
@@ -197,6 +210,8 @@ async def chat_endpoint(request: ChatRequest):
             "status": 200,
             "success": True,
             "response": {"messages": [last_ai_message]},
+            "codes": codes,
+            "sources": sources,
             "error": "",
             "stop_reason": "end_turn"
             }
@@ -207,6 +222,8 @@ async def chat_endpoint(request: ChatRequest):
             "status": 500,
             "success": False,
             "response": {},
+            "codes": "",
+            "sources": "",
             "error": str(e),
             "stop_reason": "error"
         }
@@ -255,35 +272,37 @@ async def create_conversation_with_data_expert(request: DataRequest):
             }
         )
     
-    try:
-        # Get file metadata to understand the schema
-        logger.info(f"Getting metadata for file: {data_source_file}")
-        metadata_result = get_file_metadata(data_source_file)
-        
-        if not metadata_result["status"]:
+    if request.metadata is None or not isinstance(request.metadata, dict):
+        logging.warning("No schema information provided in request metadata. Using default schema.")
+        try:
+            schema_info = get_file_metadata(data_source_file)
+        except Exception as e:
+            logging.error(f"Error getting metadata for file {data_source_file}: {str(e)}")
             return JSONResponse(
                 status_code=400,
                 content={
                     "status": 400,
                     "success": False,
                     "response": {},
-                    "error": f"Failed to get file metadata: {metadata_result['error']}",
+                    "error": f"Failed to get file metadata: {str(e)}",
                     "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
                     "stop_reason": "error"
                 }
             )
+    else:
+        schema_info = request.metadata
+    try:
+
         
-        # Prepare schema information for the system prompt
-        schema_info = metadata_result.get("metadata")
         # log the schema info full
-        # logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
-        
+        logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
+
         # Get the system prompt with variables substituted
         system_prompt = system_prompts.get("data_expert")
         if not system_prompt:
             raise ValueError("Data engineering system prompt not found in configuration")
 
-        system_prompt = system_prompt.replace("${os.environ[\"NUMBER_OF_PYTHON_SCRIPTS\"]}", "2")
+        system_prompt = system_prompt.replace("${os.environ[\"NUMBER_OF_PYTHON_SCRIPTS\"]}", "1")
         system_prompt = system_prompt.replace("${variables.data_expert.settings.input_schema}", str(schema_info))
         system_prompt = system_prompt.replace("${variables.data_expert.settings.default_data_source_file}", data_source_file)
         
@@ -386,6 +405,7 @@ async def create_conversation_with_data_expert(request: DataRequest):
                                     ]
                                 }]
                             },
+                            "code": str(python_code),
                             "error": "",
                             "stop_reason": "end_turn",
                             "execution_time": execution_result.get("execution_time", "unknown")
@@ -413,6 +433,7 @@ async def create_conversation_with_data_expert(request: DataRequest):
                 "status": 500,
                 "success": False,
                 "response": {},
+                "code": "",
                 "error": error_msg,
                 "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
                 "stop_reason": "error"
@@ -427,6 +448,7 @@ async def create_conversation_with_data_expert(request: DataRequest):
                 "status": 500,
                 "success": False,
                 "response": {},
+                "code": "",
                 "error": str(e),
                 "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
                 "stop_reason": "error"

@@ -134,6 +134,33 @@ THIS IS JUST AN EXEMPLE, DO NOT USE THIS CODE IN YOUR OUPUT
       except Exception as e:
           print(f"Error: {e}")
       # end of script number 1
+
+      # start of script number 2
+      # Method: Using .loc for Filtering and Assignment
+      try:
+          df = df_original.copy()
+          df['line_total'] = 0.0
+          completed_mask = df['status'] == 'completed'
+          # Ensure we handle potential NaNs in price or quantity before multiplication
+          df_filtered = df.loc[completed_mask].dropna(subset=['quantity', 'price'])
+          df.loc[completed_mask, 'line_total'] = df_filtered['quantity'] * df_filtered['price']
+          total_revenue = df['line_total'].sum()
+          print(f"Total revenue from completed orders: ${total_revenue:,.2f}")
+      except Exception as e:
+          print(f"Error: {e}")
+      # end of script number 2
+
+      # start of script number 3
+      # Method: Query Method and NumPy Sum
+      try:
+          df = df_original.copy()
+          completed_df = df.query('status == \"completed\"')
+          line_totals = completed_df['quantity'].fillna(0) * completed_df['price'].fillna(0)
+          total_revenue = np.sum(line_totals)
+          print(f"Total revenue from completed orders: ${total_revenue:,.2f}")
+      except Exception as e:
+          print(f"Error: {e}")
+      # end of script number 3
   
      
 ```

@@ -178,6 +178,8 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
         # prefix = prefix.strip() + f"\nimport {module_name}\n"
         for asname in module_aslist:
             prefix = prefix.strip() + f"\nimport {module_name} as {asname}\n"
+        if module_name == "pandas":
+            prefix = prefix.strip() + f"\npd.set_option('display.max_colwidth', None)\n" + f"\npd.set_option('display.width', None)\n" + f"\npd.set_option('display.max_columns', None)\n"
 
     local_safe_from_modules = SAFE_FROM_MODULES.copy()
     local_safe_from_modules.append(
