@@ -22,7 +22,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
-
+import time
 
 from app.files.structures import TreeStructure
 from app.models.chat import ChatRequest, DataRequest, AnalyzeRequest, MetaDataRequest
@@ -79,6 +79,7 @@ async def chat_endpoint(request: ChatRequest):
         brain_system_prompts = system_prompts.get("brain")
 
         brain_system_prompts = brain_system_prompts.replace("${variables.brain.settings.available_datasets}", json.dumps(available_datasets))
+        brain_system_prompts = brain_system_prompts.replace("${variables.data_expert.settings.current_date}", time.strftime("%Y-%m-%d"))
         # logging.info(f"Brain system prompts: {brain_system_prompts}")
         messages = []
 
@@ -155,11 +156,8 @@ async def chat_endpoint(request: ChatRequest):
                         logging.info(f"Data response JSON for agent {data_response_json}")
 
                         if data_response_json.get("success"):
-                            logging.info(f"Data expert successfully processed request for agent {id}")
                             data_ai_messages = data_response_json["response"].get("messages")
-                            logging.info(f"Data AI messages for agent {id}: {json.dumps(data_ai_messages, indent=2)}")
                             data_response_text = data_ai_messages[-1]["content"][0]["text"]
-                            logging.info(f"Data response text for agent {id}: {data_response_text}")
                             message_to_brain = XmlExtractor.create_agent_answer_block(data_response_text)
                         else:
                             logging.error(f"Data expert failed to process request for agent {id}: {data_response_json.get('error')}")
