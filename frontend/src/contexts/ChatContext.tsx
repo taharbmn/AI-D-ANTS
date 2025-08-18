@@ -7,6 +7,8 @@ interface Message {
   id?: number;
   sender: "user" | "assistant";
   text: string;
+  sources?: string[];
+  codes?: string[];
   created_at?: string;
 }
 
@@ -14,11 +16,13 @@ interface ChatContextType {
   selectedChatId: string | null;
   messages: Message[];
   loading: boolean;
+  selectedFiles: Array<{ name: string; path: string; data: any }>;
   selectChat: (chatId: string) => Promise<void>;
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string, datasets?: string[]) => Promise<void>;
   clearChat: () => void;
   createNewChat: () => void;
   deleteChat: (chatId: string) => Promise<void>;
+  setSelectedFiles: (files: Array<{ name: string; path: string; data: any }>) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -39,6 +43,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; data: any }>>([]);
 
   const selectChat = async (chatId: string) => {
     setLoading(true);
@@ -65,7 +70,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   };
 
-  const sendMessage = async (messageText: string) => {
+  const sendMessage = async (messageText: string, datasets?: string[]) => {
     if (!messageText.trim()) return;
 
     const userMessage: Message = {
@@ -80,9 +85,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         ? {
             content: messageText,
             conversation_id: selectedChatId,
+            available_datasets: datasets || [],
           }
         : {
             content: messageText,
+            available_datasets: datasets || [],
           };
 
       const response = await api.post("/messages/", requestBody);
@@ -99,7 +106,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       }
 
       if (response.data.message) {
-        const { content, conversation_id } = response.data.message;
+        const { content, conversation_id, sources, codes } = response.data.message;
         
         if (!selectedChatId && conversation_id) {
           setSelectedChatId(conversation_id);
@@ -110,6 +117,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           id: response.data.message.id,
           sender: "assistant",
           text: content,
+          sources: sources || [],
+          codes: codes || [],
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
@@ -156,11 +165,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     selectedChatId,
     messages,
     loading,
+    selectedFiles,
     selectChat,
     sendMessage,
     clearChat,
     createNewChat,
     deleteChat,
+    setSelectedFiles,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

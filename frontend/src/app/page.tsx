@@ -3,6 +3,7 @@
 import { SentIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import DataPanel, { Bucket } from "@/components/dataPanel";
+import MessageDisplay from "@/components/MessageDisplay";
 import { useState, useEffect, useRef } from "react";
 import { useChatContext } from "@/contexts/ChatContext";
 
@@ -49,9 +50,15 @@ export default function Home() {
   const handleSendMessage = async () => {
     if (!message.trim()) return;
     
+    // Collect all selected dataset paths
+    const datasetPaths = [
+      ...selectedBuckets.map(bucket => bucket.name), // Use bucket names as paths for now
+      ...selectedFiles.map(file => file.path)
+    ];
+    
     const messageToSend = message;
     setMessage("");
-    await sendMessage(messageToSend);
+    await sendMessage(messageToSend, datasetPaths);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -143,21 +150,14 @@ export default function Home() {
                     msg.sender === "user" ? "justify-end" : "justify-start"
                   }`}
                 >
-                  <div
-                    className={`px-6 py-4 rounded-3xl text-base max-w-[70%] whitespace-pre-line shadow-md transition-all duration-200
-                      ${
-                        msg.sender === "user"
-                          ? "bg-blue-500 text-white rounded-br-md"
-                          : "bg-white/10 text-white border border-white/10 rounded-bl-md"
-                      }
-                    `}
-                    style={{ wordBreak: "break-word" }}
-                  >
-                    {msg.sender === "assistant" 
-                      ? extractAnswerContent(msg.text)
-                      : msg.text
-                    }
-                  </div>
+                  {msg.sender === "user" ? (
+                    <div className="px-6 py-4 rounded-3xl text-base max-w-[70%] whitespace-pre-line shadow-md transition-all duration-200 bg-blue-500 text-white rounded-br-md"
+                         style={{ wordBreak: "break-word" }}>
+                      {msg.text}
+                    </div>
+                  ) : (
+                    <MessageDisplay message={msg} />
+                  )}
                 </div>
               ))
             )}
