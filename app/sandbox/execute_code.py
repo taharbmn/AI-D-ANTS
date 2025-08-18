@@ -56,7 +56,7 @@ SAFE_MODULES = {
 }
 
 SAFE_FROM_MODULES = [
-    "from tools.execute_code import read_pandas_dataFrame_from_source",
+    "from app.sandbox.execute_code import read_pandas_dataFrame_from_source",
 ]
 
 SAFE_BUILTINS = {
@@ -155,7 +155,7 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
                 continue
             readfuncs.append(func_call)
     for readfunc in readfuncs:
-        python_code = python_code.replace(readfunc, f"read_pandas_dataFrame_from_source('{target_file}', 'csv')")
+        python_code = python_code.replace(readfunc, f"read_pandas_dataFrame_from_source('{target_file}')")
 
     python_code  = python_code.replace("```python", "")
     python_code  = python_code.replace("`", "")
@@ -178,13 +178,16 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
         # prefix = prefix.strip() + f"\nimport {module_name}\n"
         for asname in module_aslist:
             prefix = prefix.strip() + f"\nimport {module_name} as {asname}\n"
+        if module_name == "pandas":
+            prefix = prefix.strip() + f"\npd.set_option('display.max_colwidth', None)\n" + f"\npd.set_option('display.width', None)\n" + f"\npd.set_option('display.max_columns', None)\n"
 
-
-    SAFE_FROM_MODULES.append(
-        f"df = read_pandas_dataFrame_from_source('{target_file}', 'csv')"
+    local_safe_from_modules = SAFE_FROM_MODULES.copy()
+    local_safe_from_modules.append(
+        f"df_original = read_pandas_dataFrame_from_source('{target_file}')"
     )
 
-    for fromline in SAFE_FROM_MODULES:
+
+    for fromline in local_safe_from_modules:
         prefix = prefix.strip() + f"\n{fromline.strip()}\n"
 
     return (prefix.strip() + "\n" + python_code.strip() + "\n")
@@ -221,6 +224,7 @@ def execute_python_code(**kwargs):
     if not data_source_file:
         raise ValueError("No data source file provided for execution")
     start_time = time.time()
+    # logging.info(f"Executing Python code:\n{python_code}")
     for code in PythonSandbox(content = python_code).split():
         code = _clean_python_code(code, data_source_file)
         logger.info(f"\n\n{code}\n\n")
