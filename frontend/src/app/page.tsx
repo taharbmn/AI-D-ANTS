@@ -3,14 +3,30 @@
 import { SentIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import DataPanel, { Bucket } from "@/components/dataPanel";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useChatContext } from "@/contexts/ChatContext";
+
+const extractAnswerContent = (text: string): string => {
+  const answerMatch = text.match(/<answer>([\s\S]*?)<\/answer>/);
+  return answerMatch ? answerMatch[1].trim() : text;
+};
 
 export default function Home() {
   const { messages, sendMessage, loading } = useChatContext();
   const [selectedBuckets, setSelectedBuckets] = useState<Bucket[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; data: any }>>([]);
   const [showDatasetSelector, setShowDatasetSelector] = useState(false);
   const [message, setMessage] = useState("");
+  const [isDragOver, setIsDragOver] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading]);
 
   const handleBucketSelect = (bucket: Bucket) => {
     if (!selectedBuckets.some((selected) => selected.name === bucket.name)) {
@@ -21,6 +37,12 @@ export default function Home() {
   const removeBucket = (bucketName: string) => {
     setSelectedBuckets((prev) =>
       prev.filter((bucket) => bucket.name !== bucketName)
+    );
+  };
+
+  const removeFile = (filePath: string) => {
+    setSelectedFiles((prev) =>
+      prev.filter((file) => file.path !== filePath)
     );
   };
 
@@ -36,6 +58,68 @@ export default function Home() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    }
+  };
+
+  const handleFileSelect = (file: { name: string; path: string; data: any }) => {
+    if (!selectedFiles.some((selected) => selected.path === file.path)) {
+      setSelectedFiles((prev) => [...prev, file]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    // First check if it's a dragged analyzed file from the data explorer
+    const jsonData = e.dataTransfer.getData('application/json');
+    if (jsonData) {
+      try {
+        const draggedFile = JSON.parse(jsonData);
+        // Add the analyzed file as a dataset chip
+        if (!selectedFiles.some(selected => selected.path === draggedFile.path)) {
+          setSelectedFiles(prev => [...prev, draggedFile]);
+        }
+        return;
+      } catch (error) {
+        console.error("Invalid JSON data:", error);
+      }
+    }
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      files.forEach(file => {
+        const filePath = (file as any).path || file.name;
+        const fileName = file.name;
+        
+        const newFile = {
+          name: fileName,
+          path: filePath,
+          data: {
+            content_type: file.type || 'unknown',
+            description: `Dragged file: ${fileName}`,
+            metadata: {
+              file_info: {
+                size: file.size
+              }
+            }
+          }
+        };
+        
+        if (!selectedFiles.some(selected => selected.path === filePath)) {
+          setSelectedFiles(prev => [...prev, newFile]);
+        }
+      });
     }
   };
 
@@ -69,7 +153,10 @@ export default function Home() {
                     `}
                     style={{ wordBreak: "break-word" }}
                   >
-                    {msg.text}
+                    {msg.sender === "assistant" 
+                      ? extractAnswerContent(msg.text)
+                      : msg.text
+                    }
                   </div>
                 </div>
               ))
@@ -78,15 +165,28 @@ export default function Home() {
               <div className="flex justify-start">
                 <div className="px-6 py-4 rounded-3xl text-base max-w-[70%] bg-white/10 text-white border border-white/10 rounded-bl-md">
                   <div className="flex items-center space-x-2">
-                    <div className="animate-pulse">Thinking...</div>
+                    <span>Thinking</span>
+                    <div className="flex space-x-1">
+                      <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="flex items-center justify-center px-6 py-6">
-            <div className="h-[150px] w-full max-w-4xl flex flex-col gap-4 p-4 bg-neutral-900 rounded-4xl relative">
+            <div 
+              className={`h-[200px] w-full max-w-4xl flex flex-col gap-4 p-4 bg-neutral-900 rounded-4xl relative transition-all duration-200 ${
+                isDragOver ? 'border-2 border-dashed border-blue-400 bg-blue-900/10' : ''
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowDatasetSelector(!showDatasetSelector)}
@@ -114,14 +214,35 @@ export default function Home() {
                   </div>
                 )}
 
+                {selectedFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedFiles.map((file) => (
+                      <div
+                        key={file.path}
+                        className="bg-blue-500/10 flex items-center justify-center gap-2 cursor-pointer border border-dashed text-sm py-2 border-blue-500/50 rounded-full w-fit px-4 text-center transition-all hover:bg-blue-500/20"
+                      >
+                        <span>{file.name}</span>
+                        <button
+                          onClick={() => removeFile(file.path)}
+                          className="hover:bg-red-500/20 cursor-pointer rounded-full p-0.5 transition-colors"
+                        >
+                          <HugeiconsIcon icon={Cancel01Icon} size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {showDatasetSelector && (
                   <div className="absolute bottom-full mb-2 left-4 bg-neutral-800 border border-gray-600 rounded-lg p-3 shadow-lg z-10 min-w-[250px]">
                     <div className="text-sm text-gray-300 mb-2">
-                      Select buckets from the Data Explorer panel →
+                      Select datasets from the Data Explorer panel →
                     </div>
-                    <div className="text-xs text-gray-400">
-                      Click the &quot;Add&quot; button next to any bucket to include it in
-                      your conversation.
+                    <div className="text-xs text-gray-400 space-y-1">
+                      <div>• Click the &quot;+&quot; button next to analyzed files</div>
+                      <div>• Drag analyzed files from Data Explorer to here</div>
+                      <div>• Or drag & drop files from your computer</div>
+                      <div>All will appear as dataset chips above</div>
                     </div>
                     <button
                       onClick={() => setShowDatasetSelector(false)}
@@ -133,13 +254,21 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="flex flex-grow items-end">
+              <div className="flex flex-grow items-end relative">
+                {isDragOver && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-blue-900/20 rounded-lg pointer-events-none z-10">
+                    <div className="text-center">
+                      <div className="text-blue-300 text-lg font-medium mb-1">Drop datasets here</div>
+                      <div className="text-blue-400 text-sm">Drag from Data Explorer or drop files/folders</div>
+                    </div>
+                  </div>
+                )}
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask me anything about your data..."
-                  className="resize-none flex-grow h-full bg-transparent text-white placeholder-gray-400 outline-none p-2 rounded-lg"
+                  placeholder={isDragOver ? "" : "Ask me anything about your data..."}
+                  className="resize-none flex-grow h-full bg-transparent pt-5 text-white placeholder-gray-400 outline-none p-2 rounded-lg"
                   disabled={loading}
                 />
                 <button 
@@ -158,6 +287,8 @@ export default function Home() {
       <DataPanel
         onBucketSelect={handleBucketSelect}
         selectedBuckets={selectedBuckets}
+        onFileSelect={handleFileSelect}
+        selectedFiles={selectedFiles}
       />
     </div>
   );

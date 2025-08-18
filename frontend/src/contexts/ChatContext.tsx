@@ -73,6 +73,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       text: messageText,
     };
     setMessages((prev) => [...prev, userMessage]);
+    setLoading(true);
 
     try {
       const requestBody = selectedChatId 
@@ -123,6 +124,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     } catch (error) {
       console.error("Failed to send message:", error);
       setMessages((prev) => prev.slice(0, -1));
+    } finally {
+      setLoading(false);
     }
   };
 
