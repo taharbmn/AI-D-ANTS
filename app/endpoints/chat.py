@@ -38,7 +38,7 @@ router = APIRouter()
 import uuid
 load_dotenv()
 
-@router.post("/chat")
+@router.post("/brain")
 async def chat_endpoint(request: ChatRequest):
     
 
