@@ -25,6 +25,7 @@ class MetaDataRequest(BaseModel):
 class DataRequest(BaseModel):
     data_source_file: str = Field(..., description="S3 path to the data file")
     message: ChatMessage = Field(..., description="User message with question about the data")
+    metadata: Dict[str, Any] = Field(..., description="Metadata for the data request")
 
 class AnalyzeRequest(BaseModel):
     """

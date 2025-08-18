@@ -49,6 +49,7 @@ async def chat_endpoint(request: ChatRequest):
 
         available_datasets = []
         mapping_id_path = {}
+        metadata_details = {}
 
         if request.available_datasets and len(request.available_datasets) > 0:
             try:
@@ -73,6 +74,7 @@ async def chat_endpoint(request: ChatRequest):
                         
                     })
                     mapping_id_path[id] = path
+                    metadata_details[id] = metadata
                 else:
                     raise ValueError(f"Dataset path {path} not found in processed tree structure.")
 
@@ -136,6 +138,7 @@ async def chat_endpoint(request: ChatRequest):
                         if not id:
                             raise HTTPException(status_code=400, detail="Agent must include 'id' field")
                         path = mapping_id_path[id]
+                        metadata = metadata_details[id]
                         if not path:
                             raise HTTPException(status_code=400, detail=f"Path for agent with id {id} not found")
                         question = agent.get("question")
@@ -146,7 +149,8 @@ async def chat_endpoint(request: ChatRequest):
                             message={
                                 "role": "user",
                                 "content": str(question)
-                            }
+                            },
+                            metadata=metadata
                         )
                         sources.append(path)
 
@@ -264,30 +268,43 @@ async def create_conversation_with_data_expert(request: DataRequest):
                 "stop_reason": "error"
             }
         )
-    
+    schema_info = request.metadata
+    if not schema_info:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "success": False,
+                "response": {},
+                "error": "Schema information is required",
+                "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                "stop_reason": "error"
+            }
+        )
     try:
         # Get file metadata to understand the schema
         logger.info(f"Getting metadata for file: {data_source_file}")
-        metadata_result = get_file_metadata(data_source_file)
+        # metadata_result = get_file_metadata(data_source_file)
         
-        if not metadata_result["status"]:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "status": 400,
-                    "success": False,
-                    "response": {},
-                    "error": f"Failed to get file metadata: {metadata_result['error']}",
-                    "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
-                    "stop_reason": "error"
-                }
-            )
+        # if not metadata_result["status"]:
+        #     return JSONResponse(
+        #         status_code=400,
+        #         content={
+        #             "status": 400,
+        #             "success": False,
+        #             "response": {},
+        #             "error": f"Failed to get file metadata: {metadata_result['error']}",
+        #             "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+        #             "stop_reason": "error"
+        #         }
+        #     )
         
         # Prepare schema information for the system prompt
-        schema_info = metadata_result.get("metadata")
-        # log the schema info full
-        # logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
+        # schema_info = metadata_result.get("metadata")
         
+        # log the schema info full
+        logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
+
         # Get the system prompt with variables substituted
         system_prompt = system_prompts.get("data_expert")
         if not system_prompt:
