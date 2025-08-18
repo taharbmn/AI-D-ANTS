@@ -34,7 +34,7 @@ const Sidebar = () => {
   const [openChatHistory, setOpenChatHistory] = React.useState(false);
   const [openSettings, setOpenSettings] = React.useState(false);
   const [showDatabricksModal, setShowDatabricksModal] = React.useState(false);
-  const [showPostgreSQLModal, setShowPostgreSQLModal] = React.useState(false);
+  // const [showPostgreSQLModal, setShowPostgreSQLModal] = React.useState(false);
   const [chatHistory, setChatHistory] = React.useState<ChatHistoryType[]>([]);
   const [editingChatId, setEditingChatId] = React.useState<string | null>(null);
   const [newChatTitle, setNewChatTitle] = React.useState("");
@@ -266,7 +266,7 @@ const Sidebar = () => {
               >
                 Databricks
               </button>
-              <button
+              {/* <button
                 onClick={() => setShowPostgreSQLModal(true)}
                 className={`w-full text-left p-3 text-sm text-gray-300 hover:bg-neutral-700 hover:text-white rounded-lg cursor-pointer transition-all duration-300 border-l-2 border-transparent hover:border-blue-400 transform hover:translate-x-1 ${
                   openSettings
@@ -278,7 +278,7 @@ const Sidebar = () => {
                 }}
               >
                 PostgreSQL
-              </button>
+              </button> */}
             </div>
           </div>
         </div>
@@ -287,9 +287,9 @@ const Sidebar = () => {
       {showDatabricksModal && (
         <SettingsModal onClose={() => setShowDatabricksModal(false)} />
       )}
-      {showPostgreSQLModal && (
+      {/* {showPostgreSQLModal && (
         <PostgreSQLModal onClose={() => setShowPostgreSQLModal(false)} />
-      )}
+      )} */}
     </div>
   );
 };
