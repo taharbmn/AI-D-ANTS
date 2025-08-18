@@ -11,17 +11,15 @@ from alembic import context
 from app.core.database import Base
 from app.models.conversation import Conversation
 from app.models.message import Message
+from dotenv import load_dotenv
 
+load_dotenv()
 config = context.config
 
 # Set database URL from environment variables
 def get_database_url():
-    db_user = os.getenv('DB_USER', 'user')
-    db_password = os.getenv('DB_PASSWORD', 'password')
-    db_host = os.getenv('DB_HOST', 'db')
-    db_port = os.getenv('DB_PORT', '5432')
-    db_name = os.getenv('DB_NAME', 'chat_app')
-    return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    # Use SQLite database URL from environment or default
+    return os.getenv('DATABASE_URL', 'sqlite:///./app_database.db')
 
 # Override the database URL with environment variables
 if config.config_file_name is not None:

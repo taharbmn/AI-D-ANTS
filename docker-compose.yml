@@ -9,37 +9,13 @@ services:
       - ./app:/app/app
       - ./requirements.txt:/app/requirements.txt
       - ./alembic.ini:/app/alembic.ini
+      - ./app_database.db:/app/app_database.db
     environment:
-      - DATABASE_URL=${DOCKER_DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
       - ALGORITHM=${ALGORITHM}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
       - DEBUG=${DEBUG}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-      # Database connection variables for Alembic
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=${POSTGRES_DB}
-      - DB_USER=${POSTGRES_USER}
-      - DB_PASSWORD=${POSTGRES_PASSWORD}
     env_file:
       - .env
-    depends_on:
-      - db
-
-  db:
-    image: postgres:13
-    restart: always
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    env_file:
-      - .env
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:

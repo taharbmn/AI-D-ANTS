@@ -211,3 +211,5 @@ local-data/.DS_Store
 local-data/db/*
 .vscode/settings.json
 .DS_Store
+app/endpoints/messages.py
+app_database.db

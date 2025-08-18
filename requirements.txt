@@ -4,7 +4,6 @@ uvicorn>=0.24.0
 pydantic>=2.5.0
 python-dotenv>=1.0.0
 sqlalchemy
-psycopg2-binary
 alembic>=1.13.0
 
 
