@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from uuid import UUID
 from typing import List, Dict, Any, Optional
 from app.schemas.message import MessageCreate, Message, MessageCreateWithConversation
 from app.schemas.conversation import ConversationCreate, Conversation
@@ -13,7 +12,7 @@ from app.endpoints.chat import chat_endpoint
 router = APIRouter()
 
 def get_conversation_context(
-    conversation_id: Optional[UUID],
+    conversation_id: Optional[str],
     db: Session,
     message_count: int = 10
 ) -> List[Dict[str, Any]]:
@@ -61,7 +60,7 @@ def get_conversation_context(
     return messages_historical
 
 def get_last_messages_formatted(
-    conversation_id: Optional[UUID],
+    conversation_id: Optional[str],
     db: Session,
     count: int = 10
 ) -> List[Dict[str, Any]]:
@@ -166,7 +165,8 @@ async def create_conversation_with_first_message(
                     content=msg["content"][0]["text"] if msg["content"] and len(msg["content"]) > 0 else ""
                 )
                 for msg in conversation_history
-            ]
+            ],
+            available_datasets=message_data.available_datasets
         )
 
     # Send to chat endpoint
@@ -174,24 +174,83 @@ async def create_conversation_with_first_message(
 
     # Extract assistant response
     if chat_response.get("success") and chat_response.get("response", {}).get("messages"):
-        assistant_message_content = chat_response["response"]["messages"][0]["content"][0]["text"]
+        try:
+            # Handle different response formats
+            messages = chat_response["response"]["messages"]
+            if messages and len(messages) > 0:
+                first_message = messages[0]
+                
+                # Check if first_message is a dict or string
+                if isinstance(first_message, dict):
+                    # Check if content is a list or string
+                    if isinstance(first_message.get("content"), list):
+                        # Content is a list
+                        content_list = first_message["content"]
+                        if content_list and len(content_list) > 0:
+                            assistant_message_content = content_list[0].get("text", "")
+                        else:
+                            assistant_message_content = ""
+                    elif isinstance(first_message.get("content"), str):
+                        # Content is a string
+                        assistant_message_content = first_message["content"]
+                    else:
+                        assistant_message_content = str(first_message.get("content", ""))
+                elif isinstance(first_message, str):
+                    # The entire message is a string
+                    assistant_message_content = first_message
+                else:
+                    assistant_message_content = str(first_message)
+                
+                sources = chat_response.get("sources", [])
+                codes = chat_response.get("codes", [])
+            else:
+                assistant_message_content = "No response from assistant"
+                sources = []
+                codes = []
 
-        # Save assistant response to database
-        assistant_message = MessageCreate(
-            content=assistant_message_content,
-            conversation_id=conversation.id,
-            sender_type="assistant"
-        )
-        assistant_db_message = create_message(db=db, message=assistant_message)
+            # Save assistant response to database
+            assistant_message = MessageCreate(
+                content=assistant_message_content,
+                conversation_id=conversation.id,
+                sender_type="assistant"
+            )
+            assistant_db_message = create_message(db=db, message=assistant_message)
 
-        return {
-            "message": {
-                "id": assistant_db_message.id,
-                "content": assistant_db_message.content,
-                "conversation_id": assistant_db_message.conversation_id,
-                "created_at": assistant_db_message.created_at
+            return {
+                "message": {
+                    "id": assistant_db_message.id,
+                    "content": assistant_db_message.content,
+                    "sources": sources,
+                    "codes": codes,
+                    "conversation_id": assistant_db_message.conversation_id,
+                    "created_at": assistant_db_message.created_at
+                }
             }
-        }
+        except (KeyError, IndexError, TypeError, AttributeError) as e:
+            # Log the error and the response structure for debugging
+            import logging
+            logging.error(f"Error parsing chat response: {e}")
+            logging.error(f"Chat response structure: {chat_response}")
+            
+            # Save a fallback message
+            assistant_message = MessageCreate(
+                content="Error processing assistant response",
+                conversation_id=conversation.id,
+                sender_type="assistant"
+            )
+            assistant_db_message = create_message(db=db, message=assistant_message)
+            
+            return {
+                "message": {
+                    "id": assistant_db_message.id,
+                    "content": assistant_db_message.content,
+                    "sources": [],
+                    "codes": [],
+                    "conversation_id": assistant_db_message.conversation_id,
+                    "created_at": assistant_db_message.created_at
+                },
+                "error": f"Error parsing response: {str(e)}"
+            }
     else:
         # Handle chat error
         return {
@@ -202,7 +261,7 @@ async def create_conversation_with_first_message(
 
 
 @router.get("/conversation/{conversation_id}", response_model=list[Message])
-def read_messages_by_conversation(conversation_id: UUID, db: Session = Depends(get_db)):
+def read_messages_by_conversation(conversation_id: str, db: Session = Depends(get_db)):
     messages = get_messages_by_conversation(db=db, conversation_id=conversation_id)
     return messages
 

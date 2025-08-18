@@ -1,11 +1,10 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-from uuid import UUID
 
 class MessageBase(BaseModel):
     content: str
-    conversation_id: UUID
+    conversation_id: str
     sender_type: Optional[str] = "user"
 
 class MessageCreate(MessageBase):
@@ -13,10 +12,11 @@ class MessageCreate(MessageBase):
 
 class MessageCreateWithConversation(BaseModel):
     content: str
-    conversation_id: Optional[UUID] = None
+    conversation_id: Optional[str] = None
+    available_datasets: Optional[list[str]] = None
 
 class Message(MessageBase):
-    id: UUID
+    id: str
     created_at: datetime
     sender_type: str
 

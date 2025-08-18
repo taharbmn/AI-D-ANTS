@@ -18,13 +18,8 @@ class Config:
     """
 
     # Database Configuration
-    DATABASE_URL: str = os.environ.get('DATABASE_URL', '')
+    DATABASE_URL: str = os.environ.get('DATABASE_URL', 'sqlite:///./app_database.db')
     DOCKER_DATABASE_URL: Optional[str] = os.environ.get('DOCKER_DATABASE_URL')
-
-    # PostgreSQL specific variables (used by Docker Compose)
-    POSTGRES_DB: Optional[str] = os.environ.get('POSTGRES_DB')
-    POSTGRES_USER: Optional[str] = os.environ.get('POSTGRES_USER')
-    POSTGRES_PASSWORD: Optional[str] = os.environ.get('POSTGRES_PASSWORD')
 
     # Security Configuration
     SECRET_KEY: str = os.environ.get('SECRET_KEY', '')

@@ -9,7 +9,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: ChatMessage = Field(..., description="User message to the chat endpoint")
     messages_historical: Optional[List[ChatMessage]] = Field(
-        None,
+        [],
         description="List of historical messages for context"
     )
     available_datasets: Optional[List[str]] = Field(
