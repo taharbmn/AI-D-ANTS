@@ -2,6 +2,9 @@ import os
 import sys
 
 
+
+
+
 sys.path.insert(0, 
 	os.path.dirname(
 		os.path.dirname(
@@ -16,7 +19,7 @@ import re
 import time
 import json
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
 
@@ -26,6 +29,9 @@ from app.models.chat import ChatRequest, DataRequest, AnalyzeRequest, MetaDataRe
 from app.core.config import system_prompts, client_cache
 from app.endpoints.metadata import get_file_metadata
 from app.sandbox.execute_code import execute_python_code
+
+from app.extractors.json_extractor import JsonExtractor
+from app.extractors.xml_extractor import XmlExtractor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -47,19 +53,20 @@ async def chat_endpoint(request: ChatRequest):
         if request.available_datasets and len(request.available_datasets) > 0:
             processed_tree_structure = TreeStructure.read_all_json_structure(step="processed")
             for path in request.available_datasets:
-                logging.info("test3")
                 if path in processed_tree_structure:
                     dataset_info = processed_tree_structure[path]
-                    logging.info("test")
                     metadata = dataset_info.get("metadata")
-                    columns = metadata.get("columns", [])
+                    columns = dataset_info.get("columnsDescription", [])
                     description = dataset_info.get("description", "")
+                    name = dataset_info.get("name", "")
                     id = str(uuid.uuid4())
 
                     available_datasets.append({
-                        "columns": columns,
+                        "id": id,
+                        "name": name,
                         "description": description,
-                        "id": id
+                        "columns": columns,
+                        
                     })
                     mapping_id_path[id] = path
                 else:
@@ -71,6 +78,8 @@ async def chat_endpoint(request: ChatRequest):
 
         brain_system_prompts = system_prompts.get("brain")
 
+        brain_system_prompts = brain_system_prompts.replace("${variables.brain.settings.available_datasets}", json.dumps(available_datasets))
+        # logging.info(f"Brain system prompts: {brain_system_prompts}")
         messages = []
 
         # Add historical messages if they exist
@@ -88,34 +97,110 @@ async def chat_endpoint(request: ChatRequest):
         })
         client = client_cache.get("ollama")
 
-        try:
-            response = await client.send(
-                messages=messages,
-                system_prompt=brain_system_prompts,
-                temperature=0.1,
-                max_tokens=5000
-            )
-            logging.info(f"AI Response: {json.dumps(response, indent=2)}")
+        max_conversation_turns = 3
+        current_turn = 0
 
-            ai_messages = response["response"].get("messages")
-            last_ai_message = ai_messages[-1]
-        
-            return {
+        while current_turn < max_conversation_turns:
+            current_turn += 1
+
+            try:
+                response = await client.send(
+                    messages=messages,
+                    system_prompt=brain_system_prompts,
+                    temperature=0.1,
+                    max_tokens=5000
+                )
+                logging.info(f"AI Response: {json.dumps(response, indent=2)}")
+
+                ai_messages = response["response"].get("messages")
+                last_ai_message = ai_messages[-1]["content"][0]["text"]
+
+                if not last_ai_message:
+                    raise HTTPException(status_code=500, detail="No messages in AI response")
+                
+                messages.append(ai_messages[-1])
+
+                extract_agents = JsonExtractor.extract_objects(last_ai_message)
+
+                logging.info(f"Extracted agents: {json.dumps(extract_agents, indent=2)}")
+
+                if len(extract_agents) > 0:
+                    for agent in extract_agents:
+                        id = agent.get("id")
+                        if not id:
+                            raise HTTPException(status_code=400, detail="Agent must include 'id' field")
+                        path = mapping_id_path[id]
+                        if not path:
+                            raise HTTPException(status_code=400, detail=f"Path for agent with id {id} not found")
+                        logging.info(f"Agent {id} is mapped to path: {path}")
+                        question = agent.get("question", "")
+                        if not question:
+                            raise HTTPException(status_code=400, detail="Agent must include 'question' field")
+                        data_request = DataRequest(
+                            data_source_file=path,
+                            message={
+                                "role": "user",
+                                "content": str(question)
+                            }
+                        )
+
+                        data_response = await create_conversation_with_data_expert(data_request)
+                        logging.info(f"Data response for agent {id}: {data_response}")
+
+                        if not data_response:
+                            raise HTTPException(status_code=500, detail="No response from data expert")
+                        logging.info(f"Data expert response for agent {id}")
+
+                        data_response_json = json.loads(data_response.body.decode('utf-8'))
+                        logging.info(f"Data response JSON for agent {data_response_json}")
+
+                        if data_response_json.get("success"):
+                            logging.info(f"Data expert successfully processed request for agent {id}")
+                            data_ai_messages = data_response_json["response"].get("messages")
+                            logging.info(f"Data AI messages for agent {id}: {json.dumps(data_ai_messages, indent=2)}")
+                            data_response_text = data_ai_messages[-1]["content"][0]["text"]
+                            logging.info(f"Data response text for agent {id}: {data_response_text}")
+                            message_to_brain = XmlExtractor.create_agent_answer_block(data_response_text)
+                        else:
+                            logging.error(f"Data expert failed to process request for agent {id}: {data_response_json.get('error')}")
+                            message_to_brain = XmlExtractor.create_agent_answer_block("The request have failed, DO NOT TRY AGAIN, REPORT TO THE USER THAT THERE WAS A PROBLEM IN PROCESSING THE FILE")
+                        messages.append({
+                            "role": "user",
+                            "content": [{"text": message_to_brain}]
+                        })
+                else:
+                    logging.info(f"all messages : {json.dumps(messages, indent=2)}")
+                    last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
+                    if last_ai_message_extracted:
+                        last_ai_message = last_ai_message_extracted
+                    return {
+                        "status": 200,
+                        "success": True,
+                        "response": {"messages": [last_ai_message]},
+                        "error": "",
+                        "stop_reason": "end_turn"
+                        }
+            except Exception as e:
+                logger.error(f"Error processing chat request: {str(e)}")
+                return {
+                    "status": 500,
+                    "success": False,
+                    "response": {},
+                    "error": str(e),
+                    "stop_reason": "error"
+                }
+        last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
+        if last_ai_message_extracted:
+            last_ai_message = last_ai_message_extracted
+
+        return {
             "status": 200,
             "success": True,
             "response": {"messages": [last_ai_message]},
             "error": "",
             "stop_reason": "end_turn"
             }
-        except Exception as e:
-            logger.error(f"Error processing chat request: {str(e)}")
-            return {
-                "status": 500,
-                "success": False,
-                "response": {},
-                "error": str(e),
-                "stop_reason": "error"
-            }
+
     except Exception as e:
         logging.error(f"Error processing chat request: {str(e)}")
         return {
@@ -292,14 +377,14 @@ async def create_conversation_with_data_expert(request: DataRequest):
                             "status": 200,
                             "success": True,
                             "response": {
-                                "message": {
+                                "messages": [{
                                     "role": "assistant",
                                     "content": [
                                         {
-                                            "text": execution_result["stdout"]
+                                            "text": str(execution_result["stdout"])
                                         }
                                     ]
-                                }
+                                }]
                             },
                             "error": "",
                             "stop_reason": "end_turn",

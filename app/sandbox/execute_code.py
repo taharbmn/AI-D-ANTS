@@ -179,12 +179,13 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
         for asname in module_aslist:
             prefix = prefix.strip() + f"\nimport {module_name} as {asname}\n"
 
-
-    SAFE_FROM_MODULES.append(
+    local_safe_from_modules = SAFE_FROM_MODULES.copy()
+    local_safe_from_modules.append(
         f"df_original = read_pandas_dataFrame_from_source('{target_file}')"
     )
 
-    for fromline in SAFE_FROM_MODULES:
+
+    for fromline in local_safe_from_modules:
         prefix = prefix.strip() + f"\n{fromline.strip()}\n"
 
     return (prefix.strip() + "\n" + python_code.strip() + "\n")
@@ -221,7 +222,7 @@ def execute_python_code(**kwargs):
     if not data_source_file:
         raise ValueError("No data source file provided for execution")
     start_time = time.time()
-    logging.info(f"Executing Python code:\n{python_code}")
+    # logging.info(f"Executing Python code:\n{python_code}")
     for code in PythonSandbox(content = python_code).split():
         code = _clean_python_code(code, data_source_file)
         logger.info(f"\n\n{code}\n\n")
