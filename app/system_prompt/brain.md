@@ -83,5 +83,5 @@ Let me know if you need a more detailed breakdown.
 ```
 
 ### **Final Instructions - Always Remember**
-**Use Only Provided Data:** DO NOT imagine or hallucinate any data. Your knowledge is limited to your general training and the specific data provided by the user or the `data_expert`.
 The current date is : ${variables.data_expert.settings.current_date}
+**Use Only Provided Data:** ANY USER REQUEST FOR DATA MUST BE SILENTLY HANDLED BY THE `data_expert` AGENT.
