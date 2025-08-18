@@ -1,10 +1,5 @@
 import os
 import sys
-
-
-
-
-
 sys.path.insert(0, 
 	os.path.dirname(
 		os.path.dirname(
@@ -25,9 +20,11 @@ from fastapi.responses import JSONResponse
 import time
 
 from app.files.structures import TreeStructure
-from app.models.chat import ChatRequest, DataRequest, AnalyzeRequest, MetaDataRequest
+from app.models.chat import ChatRequest, DataRequest
+from app.models.anomalies import CreateStructureRequest
 from app.core.config import system_prompts, client_cache
 from app.endpoints.metadata import get_file_metadata
+from app.endpoints.anomalies import create_tree_structure
 from app.sandbox.execute_code import execute_python_code
 
 from app.extractors.json_extractor import JsonExtractor
@@ -60,23 +57,29 @@ async def chat_endpoint(request: ChatRequest):
             for path in request.available_datasets:
                 if path in processed_tree_structure:
                     dataset_info = processed_tree_structure[path]
-                    metadata = dataset_info.get("metadata")
-                    columns = dataset_info.get("columnsDescription", [])
-                    description = dataset_info.get("description", "")
-                    name = dataset_info.get("name", "")
-                    id = str(uuid.uuid4())
-
-                    available_datasets.append({
-                        "id": id,
-                        "name": name,
-                        "description": description,
-                        "columns": columns,
-                        
-                    })
-                    mapping_id_path[id] = path
-                    metadata_details[id] = metadata
                 else:
-                    raise ValueError(f"Dataset path {path} not found in processed tree structure.")
+                    # TODO: Enhance this part better to be able to handle when files have been updated as well
+                    request_input = CreateStructureRequest(
+                        folder_paths=[path]
+                    )
+                    create_structure = await create_tree_structure(request_input)
+                    create_structure_json = json.loads(create_structure.body.decode('utf-8'))
+                    dataset_info = create_structure_json["response"][path]
+                metadata = dataset_info.get("metadata")
+                columns = dataset_info.get("columnsDescription", [])
+                description = dataset_info.get("description", "")
+                name = dataset_info.get("name", "")
+                id = str(uuid.uuid4())
+                available_datasets.append({
+                    "id": id,
+                    "name": name,
+                    "description": description,
+                    "columns": columns,
+                    
+                })
+                mapping_id_path[id] = path
+                metadata_details[id] = metadata
+
 
         else:
             available_datasets.append({"empty": True, "message": "No available datasets found."})
@@ -268,39 +271,28 @@ async def create_conversation_with_data_expert(request: DataRequest):
                 "stop_reason": "error"
             }
         )
-    schema_info = request.metadata
-    if not schema_info:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "status": 400,
-                "success": False,
-                "response": {},
-                "error": "Schema information is required",
-                "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
-                "stop_reason": "error"
-            }
-        )
+    
+    if request.metadata is None or not isinstance(request.metadata, dict):
+        logging.warning("No schema information provided in request metadata. Using default schema.")
+        try:
+            schema_info = get_file_metadata(data_source_file)
+        except Exception as e:
+            logging.error(f"Error getting metadata for file {data_source_file}: {str(e)}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "success": False,
+                    "response": {},
+                    "error": f"Failed to get file metadata: {str(e)}",
+                    "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                    "stop_reason": "error"
+                }
+            )
+    else:
+        schema_info = request.metadata
     try:
-        # Get file metadata to understand the schema
-        logger.info(f"Getting metadata for file: {data_source_file}")
-        # metadata_result = get_file_metadata(data_source_file)
-        
-        # if not metadata_result["status"]:
-        #     return JSONResponse(
-        #         status_code=400,
-        #         content={
-        #             "status": 400,
-        #             "success": False,
-        #             "response": {},
-        #             "error": f"Failed to get file metadata: {metadata_result['error']}",
-        #             "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
-        #             "stop_reason": "error"
-        #         }
-        #     )
-        
-        # Prepare schema information for the system prompt
-        # schema_info = metadata_result.get("metadata")
+
         
         # log the schema info full
         logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
