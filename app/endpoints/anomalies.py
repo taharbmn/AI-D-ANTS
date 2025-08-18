@@ -62,6 +62,7 @@ async def create_structure(request: CreateStructureRequest):
     list_of_destinations = []
     for path in request.folder_paths:
         path_destination = TreeStructure.get_path_for_raw_tree_structure() + path.replace("://", "_").replace("/", "_") + ".json"
+        logger.info(f"Processing path: {path} with destination: {path_destination}")
         if isinstance(path_destination, str) and path_destination.strip():
             path_destination = path_destination.strip()
             path_structure   = {}
