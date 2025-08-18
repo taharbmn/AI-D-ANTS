@@ -2,6 +2,9 @@ import os
 import sys
 
 
+
+
+
 sys.path.insert(0, 
 	os.path.dirname(
 		os.path.dirname(
@@ -16,7 +19,7 @@ import re
 import time
 import json
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
 
@@ -27,9 +30,12 @@ from app.core.config import system_prompts, client_cache
 from app.endpoints.metadata import get_file_metadata
 from app.sandbox.execute_code import execute_python_code
 
+from app.extractors.json_extractor import JsonExtractor
+from app.extractors.xml_extractor import XmlExtractor
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
+import uuid
 load_dotenv()
 
 @router.post("/chat")
@@ -39,20 +45,41 @@ async def chat_endpoint(request: ChatRequest):
     try: 
         logging.info("new message")
 
+        
+
         available_datasets = []
+        mapping_id_path = {}
+
         if request.available_datasets and len(request.available_datasets) > 0:
-            for dataset in request.available_datasets:
-                available_datasets.append({
-                    "columns": dataset.get("colomns", ""),
-                    "description": dataset.get("description"),
-                    "path": dataset.get("path"),
-                    "title": dataset.get("title")
-                })
+            processed_tree_structure = TreeStructure.read_all_json_structure(step="processed")
+            for path in request.available_datasets:
+                if path in processed_tree_structure:
+                    dataset_info = processed_tree_structure[path]
+                    metadata = dataset_info.get("metadata")
+                    columns = dataset_info.get("columnsDescription", [])
+                    description = dataset_info.get("description", "")
+                    name = dataset_info.get("name", "")
+                    id = str(uuid.uuid4())
+
+                    available_datasets.append({
+                        "id": id,
+                        "name": name,
+                        "description": description,
+                        "columns": columns,
+                        
+                    })
+                    mapping_id_path[id] = path
+                else:
+                    raise ValueError(f"Dataset path {path} not found in processed tree structure.")
+
         else:
             available_datasets.append({"empty": True, "message": "No available datasets found."})
-        
+
+
         brain_system_prompts = system_prompts.get("brain")
 
+        brain_system_prompts = brain_system_prompts.replace("${variables.brain.settings.available_datasets}", json.dumps(available_datasets))
+        # logging.info(f"Brain system prompts: {brain_system_prompts}")
         messages = []
 
         # Add historical messages if they exist
@@ -70,34 +97,110 @@ async def chat_endpoint(request: ChatRequest):
         })
         client = client_cache.get("ollama")
 
-        try:
-            response = await client.send(
-                messages=messages,
-                system_prompt=brain_system_prompts,
-                temperature=0.1,
-                max_tokens=5000
-            )
-            logging.info(f"AI Response: {json.dumps(response, indent=2)}")
+        max_conversation_turns = 3
+        current_turn = 0
 
-            ai_messages = response["response"].get("messages")
-            last_ai_message = ai_messages[-1]
-        
-            return {
+        while current_turn < max_conversation_turns:
+            current_turn += 1
+
+            try:
+                response = await client.send(
+                    messages=messages,
+                    system_prompt=brain_system_prompts,
+                    temperature=0.1,
+                    max_tokens=5000
+                )
+                logging.info(f"AI Response: {json.dumps(response, indent=2)}")
+
+                ai_messages = response["response"].get("messages")
+                last_ai_message = ai_messages[-1]["content"][0]["text"]
+
+                if not last_ai_message:
+                    raise HTTPException(status_code=500, detail="No messages in AI response")
+                
+                messages.append(ai_messages[-1])
+
+                extract_agents = JsonExtractor.extract_objects(last_ai_message)
+
+                logging.info(f"Extracted agents: {json.dumps(extract_agents, indent=2)}")
+
+                if len(extract_agents) > 0:
+                    for agent in extract_agents:
+                        id = agent.get("id")
+                        if not id:
+                            raise HTTPException(status_code=400, detail="Agent must include 'id' field")
+                        path = mapping_id_path[id]
+                        if not path:
+                            raise HTTPException(status_code=400, detail=f"Path for agent with id {id} not found")
+                        logging.info(f"Agent {id} is mapped to path: {path}")
+                        question = agent.get("question", "")
+                        if not question:
+                            raise HTTPException(status_code=400, detail="Agent must include 'question' field")
+                        data_request = DataRequest(
+                            data_source_file=path,
+                            message={
+                                "role": "user",
+                                "content": str(question)
+                            }
+                        )
+
+                        data_response = await create_conversation_with_data_expert(data_request)
+                        logging.info(f"Data response for agent {id}: {data_response}")
+
+                        if not data_response:
+                            raise HTTPException(status_code=500, detail="No response from data expert")
+                        logging.info(f"Data expert response for agent {id}")
+
+                        data_response_json = json.loads(data_response.body.decode('utf-8'))
+                        logging.info(f"Data response JSON for agent {data_response_json}")
+
+                        if data_response_json.get("success"):
+                            logging.info(f"Data expert successfully processed request for agent {id}")
+                            data_ai_messages = data_response_json["response"].get("messages")
+                            logging.info(f"Data AI messages for agent {id}: {json.dumps(data_ai_messages, indent=2)}")
+                            data_response_text = data_ai_messages[-1]["content"][0]["text"]
+                            logging.info(f"Data response text for agent {id}: {data_response_text}")
+                            message_to_brain = XmlExtractor.create_agent_answer_block(data_response_text)
+                        else:
+                            logging.error(f"Data expert failed to process request for agent {id}: {data_response_json.get('error')}")
+                            message_to_brain = XmlExtractor.create_agent_answer_block("The request have failed, DO NOT TRY AGAIN, REPORT TO THE USER THAT THERE WAS A PROBLEM IN PROCESSING THE FILE")
+                        messages.append({
+                            "role": "user",
+                            "content": [{"text": message_to_brain}]
+                        })
+                else:
+                    logging.info(f"all messages : {json.dumps(messages, indent=2)}")
+                    last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
+                    if last_ai_message_extracted:
+                        last_ai_message = last_ai_message_extracted
+                    return {
+                        "status": 200,
+                        "success": True,
+                        "response": {"messages": [last_ai_message]},
+                        "error": "",
+                        "stop_reason": "end_turn"
+                        }
+            except Exception as e:
+                logger.error(f"Error processing chat request: {str(e)}")
+                return {
+                    "status": 500,
+                    "success": False,
+                    "response": {},
+                    "error": str(e),
+                    "stop_reason": "error"
+                }
+        last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
+        if last_ai_message_extracted:
+            last_ai_message = last_ai_message_extracted
+
+        return {
             "status": 200,
             "success": True,
             "response": {"messages": [last_ai_message]},
             "error": "",
             "stop_reason": "end_turn"
             }
-        except Exception as e:
-            logger.error(f"Error processing chat request: {str(e)}")
-            return {
-                "status": 500,
-                "success": False,
-                "response": {},
-                "error": str(e),
-                "stop_reason": "error"
-            }
+
     except Exception as e:
         logging.error(f"Error processing chat request: {str(e)}")
         return {
@@ -122,64 +225,7 @@ def extract_python_code(ai_response: str) -> str:
     # If no code blocks found, return the entire response as it might be raw code
     return ai_response.strip()
 
-@router.post("/analyze")
-async def analyze(request: AnalyzeRequest):
-    global_structure   = {}
-    global_destination = request.destination
-    local_structures   = []
-    for path, path_config in request.sources.items():
-        path_destination = path_config.get("destination")
-        if isinstance(path_destination, str) and path_destination.strip():
-            path_destination = path_destination.strip()
-            path_structure   = {}
-            TreeStructure.generate(
-                path   = path,
-                result = path_structure
-            )
-            # init metadata for local structure
-            TreeStructure.init_metadata(
-                structure = path_structure
-            )
-            # update metadata for local structure (using AI, meatadata endpoint)
-            path_structure = await TreeStructure.update_metadata(
-                structure = path_structure
-            )
-            # save local structure permanently
-            TreeStructure.save(
-                structure   = path_structure,
-                destination = path_destination
-            )
-            local_structures.append(path_structure)
-        else:
-            TreeStructure.generate(
-                path   = path,
-                result = global_structure
-            )
-    # init metadata for global structure
-    TreeStructure.init_metadata(
-        global_structure
-    )
-    # update metadata for global structure (using AI, metadata endpoint)
-    global_structure = await TreeStructure.update_metadata(
-        structure = global_structure
-    )
-    # save global structure permanently
-    TreeStructure.save(
-        structure   = global_structure,
-        destination = global_destination
-    )
-    # just for API:
-    for local_structure in local_structures:
-        for key, val in local_structure:
-            global_structure[key] = val
-    return JSONResponse(
-        status_code = 200,
-        content = {
-            "response"   : global_structure,
-            "success"    : True,
-            "status"     : 200
-        }
-    )
+
 
 @router.post("/data_expert")
 async def create_conversation_with_data_expert(request: DataRequest):
@@ -230,15 +276,15 @@ async def create_conversation_with_data_expert(request: DataRequest):
         # Prepare schema information for the system prompt
         schema_info = metadata_result.get("metadata")
         # log the schema info full
-        logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
+        # logger.info(f"Schema info: {json.dumps(schema_info, indent=2)}")
         
         # Get the system prompt with variables substituted
-        system_prompt = system_prompts.get("data_eng", "")
+        system_prompt = system_prompts.get("data_expert")
         if not system_prompt:
             raise ValueError("Data engineering system prompt not found in configuration")
 
-        system_prompt = system_prompt.replace("${os.environ[\"NUMBER_OF_PYTHON_SCRIPTS\"]}", os.environ["NUMBER_OF_PYTHON_SCRIPTS"])
-        system_prompt = system_prompt.replace("${variables.data_expert.settings.input_schema}", schema_info)
+        system_prompt = system_prompt.replace("${os.environ[\"NUMBER_OF_PYTHON_SCRIPTS\"]}", "2")
+        system_prompt = system_prompt.replace("${variables.data_expert.settings.input_schema}", str(schema_info))
         system_prompt = system_prompt.replace("${variables.data_expert.settings.default_data_source_file}", data_source_file)
         
         # Prepare messages for AI
@@ -258,12 +304,11 @@ async def create_conversation_with_data_expert(request: DataRequest):
         ]
         
         
-        # Initialize Databricks AI client
         client = client_cache.get("ollama")
         
         # Set timeout and retry configuration
         DATA_EXPERT_DURATION = int(os.environ.get("DATA_EXPERT_DURATION", "60"))
-        max_fails_count = 3
+        max_fails_count = 2
         fails_count = 0
         stop_time = time.time() + DATA_EXPERT_DURATION
         
@@ -279,7 +324,6 @@ async def create_conversation_with_data_expert(request: DataRequest):
                     max_tokens=5000
                 )
                 
-                logger.info(f"AI Response received: {json.dumps(response, indent=2)}")
                 print(f"=== AI RESPONSE ===\n{json.dumps(response, indent=2)}")
                 
                 if response["error"]:
@@ -288,15 +332,18 @@ async def create_conversation_with_data_expert(request: DataRequest):
                     time.sleep(1)
                     continue
                 
+                print("-------------------------------------")
+                
                 # Extract Python code from AI response
-                ai_text = response["content"]
+                ai_messages = response["response"].get("messages")
+                ai_text = ai_messages[-1]["content"][0]["text"]
                 logger.info(f"=== AI GENERATED TEXT ===")
                 logger.info(f"Raw AI response content:\n{ai_text}")
                 print(f"=== AI GENERATED TEXT ===\n{ai_text}")
                 
                 python_code = extract_python_code(ai_text)
-                logger.info(f"=== EXTRACTED PYTHON CODE ===")
-                logger.info(f"Extracted code:\n{python_code}")
+                logging.info(f"=== EXTRACTED PYTHON CODE ===")
+                logging.info(f"Extracted code:\n{python_code}")
                 print(f"=== EXTRACTED PYTHON CODE ===\n{python_code}")
                 
                 if not python_code:
@@ -330,14 +377,14 @@ async def create_conversation_with_data_expert(request: DataRequest):
                             "status": 200,
                             "success": True,
                             "response": {
-                                "message": {
+                                "messages": [{
                                     "role": "assistant",
                                     "content": [
                                         {
-                                            "text": execution_result["stdout"]
+                                            "text": str(execution_result["stdout"])
                                         }
                                     ]
-                                }
+                                }]
                             },
                             "error": "",
                             "stop_reason": "end_turn",
@@ -385,3 +432,64 @@ async def create_conversation_with_data_expert(request: DataRequest):
                 "stop_reason": "error"
             }
         )
+    
+
+
+# @router.post("/analyze")
+# async def analyze(request: AnalyzeRequest):
+#     global_structure   = {}
+#     global_destination = request.destination
+#     local_structures   = []
+#     for path, path_config in request.sources.items():
+#         path_destination = path_config.get("destination")
+#         if isinstance(path_destination, str) and path_destination.strip():
+#             path_destination = path_destination.strip()
+#             path_structure   = {}
+#             TreeStructure.generate(
+#                 path   = path,
+#                 result = path_structure
+#             )
+#             # init metadata for local structure
+#             TreeStructure.init_metadata(
+#                 structure = path_structure
+#             )
+#             # update metadata for local structure (using AI, meatadata endpoint)
+#             path_structure = await TreeStructure.update_metadata(
+#                 structure = path_structure
+#             )
+#             # save local structure permanently
+#             TreeStructure.save(
+#                 structure   = path_structure,
+#                 destination = path_destination
+#             )
+#             local_structures.append(path_structure)
+#         else:
+#             TreeStructure.generate(
+#                 path   = path,
+#                 result = global_structure
+#             )
+#     # init metadata for global structure
+#     TreeStructure.init_metadata(
+#         global_structure
+#     )
+#     # update metadata for global structure (using AI, metadata endpoint)
+#     global_structure = await TreeStructure.update_metadata(
+#         structure = global_structure
+#     )
+#     # save global structure permanently
+#     TreeStructure.save(
+#         structure   = global_structure,
+#         destination = global_destination
+#     )
+#     # just for API:
+#     for local_structure in local_structures:
+#         for key, val in local_structure:
+#             global_structure[key] = val
+#     return JSONResponse(
+#         status_code = 200,
+#         content = {
+#             "response"   : global_structure,
+#             "success"    : True,
+#             "status"     : 200
+#         }
+#     )
