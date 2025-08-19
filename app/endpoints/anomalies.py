@@ -261,3 +261,35 @@ async def create_tree_structure(request: CreateStructureRequest):
             "status"     : 200
         }
     )
+
+@router.get("/processed_tree_structure")
+async def get_processed_tree_structure():
+    try:
+        processed_tree_structure = TreeStructure.read_all_json_structure(step="processed")
+        return JSONResponse(
+            status_code=200,
+            content={
+                "response": processed_tree_structure,
+                "success": True,
+                "status": 200
+            }
+        )
+    except FileNotFoundError:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "response": "Processed tree structure not found",
+                "success": False,
+                "status": 404
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to get processed tree structure: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "response": "Failed to get processed tree structure",
+                "success": False,
+                "status": 500
+            }
+        )
