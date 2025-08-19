@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CloudIcon, 
   ArrowDown01Icon, 
@@ -23,7 +23,7 @@ import {
   getObjectContent,
   testBucketConnection
 } from '../lib/s3-actions';
-import { createTreeStructure } from '../lib/api';
+import { createTreeStructure, getProcessedTreeStructure } from '../lib/api';
 
 interface S3Object {
   key: string;
@@ -72,6 +72,28 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   const [localPaths, setLocalPaths] = useState<string[]>([]);
   const [expandedFiles, setExpandedFiles] = useState<string[]>([]);
   const [isDragOverInput, setIsDragOverInput] = useState(false);
+
+  // Load processed tree structure on component mount
+  useEffect(() => {
+    const loadProcessedData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getProcessedTreeStructure();
+        if (response.success && response.response) {
+          setTreeStructure(response.response);
+          setShowTreeStructure(true);
+          setError(null);
+        }
+      } catch (error) {
+        console.log('No processed data available yet');
+        // Don't set error for this case as it's expected when no data has been processed
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProcessedData();
+  }, []);
 
   const handlePullBuckets = async () => {
     if (!s3Url.trim()) {
@@ -217,7 +239,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   );
 
   return (
-    <div className="w-[530px] bg-neutral-800 rounded-4xl p-6 flex flex-col gap-4 h-full">
+    <div className="w-full bg-neutral-800 rounded-4xl p-6 flex flex-col gap-4 h-full">
       <div className="flex items-center gap-3">
         <HugeiconsIcon icon={DatabaseIcon} className="text-blue-400" size={24} />
         <h2 className="text-xl font-bold text-white">Data Explorer</h2>

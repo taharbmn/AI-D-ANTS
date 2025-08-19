@@ -14,6 +14,7 @@ interface Message {
 
 interface ChatContextType {
   selectedChatId: string | null;
+  currentChatTitle: string | null;
   messages: Message[];
   loading: boolean;
   selectedFiles: Array<{ name: string; path: string; data: any }>;
@@ -41,6 +42,7 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [currentChatTitle, setCurrentChatTitle] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; data: any }>>([]);
@@ -60,10 +62,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         })) || [];
 
       setSelectedChatId(chatId);
+      setCurrentChatTitle(conversation.title || `Chat ${chatId.slice(0, 8)}`);
       setMessages(transformedMessages);
     } catch (error) {
       console.error("Failed to load chat messages:", error);
       setSelectedChatId(chatId);
+      setCurrentChatTitle(`Chat ${chatId.slice(0, 8)}`);
       setMessages([]);
     } finally {
       setLoading(false);
@@ -140,11 +144,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   const clearChat = () => {
     setSelectedChatId(null);
+    setCurrentChatTitle(null);
     setMessages([]);
   };
 
   const createNewChat = () => {
     setSelectedChatId(null);
+    setCurrentChatTitle(null);
     setMessages([]);
   };
 
@@ -163,6 +169,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   const value: ChatContextType = {
     selectedChatId,
+    currentChatTitle,
     messages,
     loading,
     selectedFiles,

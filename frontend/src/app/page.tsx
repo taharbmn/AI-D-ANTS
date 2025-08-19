@@ -1,25 +1,32 @@
 "use client";
 
-import { SentIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { SentIcon, Cancel01Icon, ArrowDown01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import DataPanel, { Bucket } from "@/components/dataPanel";
 import MessageDisplay from "@/components/MessageDisplay";
 import { useState, useEffect, useRef } from "react";
 import { useChatContext } from "@/contexts/ChatContext";
 
-const extractAnswerContent = (text: string): string => {
-  const answerMatch = text.match(/<answer>([\s\S]*?)<\/answer>/);
-  return answerMatch ? answerMatch[1].trim() : text;
-};
+
+const availableModels = [
+  { id: "ollama", name: "Ollama", description: "Local AI models" },
+  { id: "databricks", name: "Databricks", description: "Cloud AI platform" },
+];
 
 export default function Home() {
-  const { messages, sendMessage, loading } = useChatContext();
+  const { messages, sendMessage, loading, currentChatTitle } = useChatContext();
   const [selectedBuckets, setSelectedBuckets] = useState<Bucket[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; data: any }>>([]);
   const [showDatasetSelector, setShowDatasetSelector] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedModel, setSelectedModel] = useState("ollama");
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [chatWidth, setChatWidth] = useState(70);
+  const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -28,6 +35,55 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Resizer functionality
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newChatWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      
+      const constrainedWidth = Math.min(Math.max(newChatWidth, 30), 80);
+      setChatWidth(constrainedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   const handleBucketSelect = (bucket: Bucket) => {
     if (!selectedBuckets.some((selected) => selected.name === bucket.name)) {
@@ -131,10 +187,66 @@ export default function Home() {
   };
 
   return (
-    <div className="flex gap-6 flex-grow">
-      <div className="bg-neutral-800 relative flex-grow rounded-4xl flex flex-col">
+    <div className="flex gap-2 flex-grow" ref={containerRef}>
+      <div 
+        className="bg-neutral-800 relative rounded-4xl flex flex-col transition-all duration-200 ease-out"
+        style={{ width: `${chatWidth}%` }}
+      >
         <div className="w-full max-h-[93.5vh] flex flex-col overflow-y-auto custom-scrollbar">
-          <div className="w-full flex flex-col px-24 gap-6 py-4 h-[78vh] overflow-y-scroll">
+          <div className="px-6 py-4 border-b border-neutral-700/50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-white">
+                {currentChatTitle || "New Chat"}
+              </h2>
+              <div className="relative" ref={modelDropdownRef}>
+                <button
+                  onClick={() => setShowModelDropdown(!showModelDropdown)}
+                  className="flex justify-between items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-full text-sm text-white transition-all duration-200 min-w-[160px] shadow-lg"
+                >
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="truncate">{availableModels.find(m => m.id === selectedModel)?.name || selectedModel}</span>
+                  <HugeiconsIcon icon={ArrowDown01Icon} size={20} className={`transition-transform duration-200 ${showModelDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {showModelDropdown && (
+                  <div className="absolute top-full mt-2 right-0 bg-neutral-800 border border-neutral-600 rounded-2xl shadow-2xl z-20 min-w-[280px] overflow-hidden">
+                    <div className="max-h-64 overflow-y-auto">
+                      {availableModels.map((model) => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            setSelectedModel(model.id);
+                            setShowModelDropdown(false);
+                          }}
+                          className={`w-full text-left p-3 hover:bg-neutral-700 transition-colors duration-200 border-l-4 ${
+                            selectedModel === model.id 
+                              ? 'border-blue-500 bg-neutral-700/50' 
+                              : 'border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  selectedModel === model.id ? 'bg-blue-400' : 'bg-green-400'
+                                }`}></div>
+                                <span className="text-sm font-medium text-white">{model.name}</span>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">{model.description}</p>
+                            </div>
+                            {selectedModel === model.id && (
+                              <HugeiconsIcon icon={Tick02Icon}  strokeWidth={2} size={20} className="text-blue-400" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="w-full flex flex-col px-24 gap-6 py-4 h-[74vh] overflow-y-scroll">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
@@ -263,6 +375,7 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -284,12 +397,50 @@ export default function Home() {
         </div>
       </div>
 
-      <DataPanel
-        onBucketSelect={handleBucketSelect}
-        selectedBuckets={selectedBuckets}
-        onFileSelect={handleFileSelect}
-        selectedFiles={selectedFiles}
-      />
+      <div 
+        className={`relative flex items-center justify-center group cursor-col-resize transition-all duration-200 rounded-full ${
+          isResizing ? 'bg-blue-500/20' : 'hover:bg-neutral-700/50'
+        }`}
+        style={{ width: '12px' }}
+        onMouseDown={handleMouseDown}
+      >
+        <div className="flex flex-col gap-1 items-center">
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+        </div>
+        
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+          <div className="bg-neutral-900 text-white text-xs px-2 py-1 rounded-lg shadow-lg whitespace-nowrap -translate-y-8">
+            Drag to resize
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-neutral-900 rotate-45 -mt-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <div 
+        className="transition-all duration-200 ease-out"
+        style={{ width: `${100 - chatWidth}%` }}
+      >
+        <DataPanel
+          onBucketSelect={handleBucketSelect}
+          selectedBuckets={selectedBuckets}
+          onFileSelect={handleFileSelect}
+          selectedFiles={selectedFiles}
+        />
+      </div>
     </div>
   );
 }
