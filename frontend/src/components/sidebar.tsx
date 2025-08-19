@@ -32,7 +32,6 @@ type ChatHistoryType = {
 const Sidebar = () => {
   const { selectedChatId, selectChat, createNewChat, deleteChat } = useChatContext();
   const [openChatHistory, setOpenChatHistory] = React.useState(false);
-  const [openSettings, setOpenSettings] = React.useState(false);
   const [showDatabricksModal, setShowDatabricksModal] = React.useState(false);
   // const [showPostgreSQLModal, setShowPostgreSQLModal] = React.useState(false);
   const [chatHistory, setChatHistory] = React.useState<ChatHistoryType[]>([]);
@@ -230,57 +229,13 @@ const Sidebar = () => {
         </div>
 
         <div>
-          <div
-            onClick={() => setOpenSettings(!openSettings)}
-            className="flex items-center justify-between space-x-2 p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300"
+          <button
+            onClick={() => setShowDatabricksModal(true)}
+            className="flex items-center space-x-2 p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300 w-full text-left border-l-2 border-transparent hover:border-orange-400 transform hover:translate-x-1"
           >
-            <div className="flex items-center space-x-2">
-              <HugeiconsIcon icon={Settings01Icon} />
-              <span>Settings</span>
-            </div>
-            <HugeiconsIcon
-              icon={openSettings ? ArrowUp01Icon : ArrowDown01Icon}
-              className={`text-gray-400 transition-transform duration-300 ${
-                openSettings ? "rotate-180" : ""
-              }`}
-            />
-          </div>
-          <div
-            className={`ml-6 overflow-hidden transition-all duration-500 ease-in-out ${
-              openSettings
-                ? "max-h-32 opacity-100 mt-2"
-                : "max-h-0 opacity-0 mt-0"
-            }`}
-          >
-            <div className="space-y-1">
-              <button
-                onClick={() => setShowDatabricksModal(true)}
-                className={`w-full text-left p-3 text-sm text-gray-300 hover:bg-neutral-700 hover:text-white rounded-lg cursor-pointer transition-all duration-300 border-l-2 border-transparent hover:border-orange-400 transform hover:translate-x-1 ${
-                  openSettings
-                    ? "translate-y-0 opacity-100"
-                    : "translate-y-2 opacity-0"
-                }`}
-                style={{
-                  transitionDelay: openSettings ? "50ms" : "0ms",
-                }}
-              >
-                Databricks
-              </button>
-              {/* <button
-                onClick={() => setShowPostgreSQLModal(true)}
-                className={`w-full text-left p-3 text-sm text-gray-300 hover:bg-neutral-700 hover:text-white rounded-lg cursor-pointer transition-all duration-300 border-l-2 border-transparent hover:border-blue-400 transform hover:translate-x-1 ${
-                  openSettings
-                    ? "translate-y-0 opacity-100"
-                    : "translate-y-2 opacity-0"
-                }`}
-                style={{
-                  transitionDelay: openSettings ? "100ms" : "0ms",
-                }}
-              >
-                PostgreSQL
-              </button> */}
-            </div>
-          </div>
+            <HugeiconsIcon icon={Settings01Icon} />
+            <span>Databricks</span>
+          </button>
         </div>
       </div>
 

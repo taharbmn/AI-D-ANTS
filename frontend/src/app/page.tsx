@@ -12,14 +12,28 @@ const extractAnswerContent = (text: string): string => {
   return answerMatch ? answerMatch[1].trim() : text;
 };
 
+const availableModels = [
+  { id: "llama3.1:8b", name: "Llama 3.1 8B", description: "Fast, efficient" },
+  { id: "llama3.1:70b", name: "Llama 3.1 70B", description: "More capable" },
+  { id: "mistral:7b", name: "Mistral 7B", description: "Lightweight" },
+  { id: "codellama:13b", name: "Code Llama 13B", description: "Code focused" },
+  { id: "gemma2:9b", name: "Gemma 2 9B", description: "Google's model" },
+];
+
 export default function Home() {
-  const { messages, sendMessage, loading } = useChatContext();
+  const { messages, sendMessage, loading, currentChatTitle } = useChatContext();
   const [selectedBuckets, setSelectedBuckets] = useState<Bucket[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; data: any }>>([]);
   const [showDatasetSelector, setShowDatasetSelector] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedModel, setSelectedModel] = useState("llama3.1:8b");
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [chatWidth, setChatWidth] = useState(70); // Percentage width for chat area
+  const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -28,6 +42,55 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Resizer functionality
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newChatWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      
+      const constrainedWidth = Math.min(Math.max(newChatWidth, 30), 80);
+      setChatWidth(constrainedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   const handleBucketSelect = (bucket: Bucket) => {
     if (!selectedBuckets.some((selected) => selected.name === bucket.name)) {
@@ -131,10 +194,79 @@ export default function Home() {
   };
 
   return (
-    <div className="flex gap-6 flex-grow">
-      <div className="bg-neutral-800 relative flex-grow rounded-4xl flex flex-col">
+    <div className="flex gap-0 flex-grow" ref={containerRef}>
+      {/* Chat Area */}
+      <div 
+        className="bg-neutral-800 relative rounded-4xl flex flex-col transition-all duration-200 ease-out"
+        style={{ width: `${chatWidth}%` }}
+      >
         <div className="w-full max-h-[93.5vh] flex flex-col overflow-y-auto custom-scrollbar">
-          <div className="w-full flex flex-col px-24 gap-6 py-4 h-[78vh] overflow-y-scroll">
+          {/* Model Selector Header */}
+          <div className="px-6 py-4 border-b border-neutral-700/50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-white">
+                {currentChatTitle || "New Chat"}
+              </h2>
+              <div className="relative" ref={modelDropdownRef}>
+                <button
+                  onClick={() => setShowModelDropdown(!showModelDropdown)}
+                  className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-full text-sm text-white transition-all duration-200 min-w-[160px] shadow-lg"
+                >
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="truncate">{availableModels.find(m => m.id === selectedModel)?.name || selectedModel}</span>
+                  <svg 
+                    className={`w-4 h-4 transition-transform duration-200 ${showModelDropdown ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {showModelDropdown && (
+                  <div className="absolute top-full mt-2 right-0 bg-neutral-800 border border-neutral-600 rounded-2xl shadow-2xl z-20 min-w-[280px] overflow-hidden">
+                    <div className="max-h-64 overflow-y-auto">
+                      {availableModels.map((model) => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            setSelectedModel(model.id);
+                            setShowModelDropdown(false);
+                          }}
+                          className={`w-full text-left p-3 hover:bg-neutral-700 transition-colors duration-200 border-l-4 ${
+                            selectedModel === model.id 
+                              ? 'border-blue-500 bg-neutral-700/50' 
+                              : 'border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  selectedModel === model.id ? 'bg-blue-400' : 'bg-green-400'
+                                }`}></div>
+                                <span className="text-sm font-medium text-white">{model.name}</span>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">{model.description}</p>
+                            </div>
+                            {selectedModel === model.id && (
+                              <div className="w-5 h-5 text-blue-400">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="w-full flex flex-col px-24 gap-6 py-4 h-[74vh] overflow-y-scroll">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
@@ -263,6 +395,7 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -284,12 +417,30 @@ export default function Home() {
         </div>
       </div>
 
-      <DataPanel
-        onBucketSelect={handleBucketSelect}
-        selectedBuckets={selectedBuckets}
-        onFileSelect={handleFileSelect}
-        selectedFiles={selectedFiles}
-      />
+      {/* Resizable Divider */}
+      <div 
+        className={`w-1 bg-neutral-600 hover:bg-blue-500 cursor-col-resize transition-colors duration-200 flex-shrink-0 ${
+          isResizing ? 'bg-blue-500' : ''
+        }`}
+        onMouseDown={handleMouseDown}
+      >
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="w-0.5 h-8 bg-neutral-400 rounded-full opacity-60"></div>
+        </div>
+      </div>
+
+      {/* Data Panel */}
+      <div 
+        className="transition-all duration-200 ease-out"
+        style={{ width: `${100 - chatWidth}%` }}
+      >
+        <DataPanel
+          onBucketSelect={handleBucketSelect}
+          selectedBuckets={selectedBuckets}
+          onFileSelect={handleFileSelect}
+          selectedFiles={selectedFiles}
+        />
+      </div>
     </div>
   );
 }
