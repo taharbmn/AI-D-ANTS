@@ -172,7 +172,7 @@ def _clean_python_code(python_code: str, target_file: str) -> str:
     python_code = _python_code
 
     prefix = ""
-    prefix = f"import sys\nsys.path.append('{SECURE_PACKAGE_DIR}')\n\n"
+    prefix = f"import sys\nsys.path.append({repr(SECURE_PACKAGE_DIR)})\n\n"
 
     for module_name, module_aslist in SAFE_MODULES.items():
         # prefix = prefix.strip() + f"\nimport {module_name}\n"
@@ -210,7 +210,7 @@ def _worker_exec(code: str, result_queue: multiprocessing.Queue):
     except Exception as e:
         result_queue.put({
             "success": False,
-            "stdout" : str(output.getvalue()).strip(),
+            "stdout" : str(stdout.getvalue()).strip(),
             "stderr" : str(stderr.getvalue()).strip(),
             "error"  : f"{type(e).__name__}: {str(e)}\n{stderr.getvalue()}",
         })

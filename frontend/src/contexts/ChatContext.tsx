@@ -7,18 +7,23 @@ interface Message {
   id?: number;
   sender: "user" | "assistant";
   text: string;
+  sources?: string[];
+  codes?: string[];
   created_at?: string;
 }
 
 interface ChatContextType {
   selectedChatId: string | null;
+  currentChatTitle: string | null;
   messages: Message[];
   loading: boolean;
+  selectedFiles: Array<{ name: string; path: string; data: any }>;
   selectChat: (chatId: string) => Promise<void>;
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string, datasets?: string[]) => Promise<void>;
   clearChat: () => void;
   createNewChat: () => void;
   deleteChat: (chatId: string) => Promise<void>;
+  setSelectedFiles: (files: Array<{ name: string; path: string; data: any }>) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -37,8 +42,10 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [currentChatTitle, setCurrentChatTitle] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; data: any }>>([]);
 
   const selectChat = async (chatId: string) => {
     setLoading(true);
@@ -55,17 +62,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         })) || [];
 
       setSelectedChatId(chatId);
+      setCurrentChatTitle(conversation.title || `Chat ${chatId.slice(0, 8)}`);
       setMessages(transformedMessages);
     } catch (error) {
       console.error("Failed to load chat messages:", error);
       setSelectedChatId(chatId);
+      setCurrentChatTitle(`Chat ${chatId.slice(0, 8)}`);
       setMessages([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const sendMessage = async (messageText: string) => {
+  const sendMessage = async (messageText: string, datasets?: string[]) => {
     if (!messageText.trim()) return;
 
     const userMessage: Message = {
@@ -73,15 +82,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       text: messageText,
     };
     setMessages((prev) => [...prev, userMessage]);
+    setLoading(true);
 
     try {
       const requestBody = selectedChatId 
         ? {
             content: messageText,
             conversation_id: selectedChatId,
+            available_datasets: datasets || [],
           }
         : {
             content: messageText,
+            available_datasets: datasets || [],
           };
 
       const response = await api.post("/messages/", requestBody);
@@ -98,7 +110,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       }
 
       if (response.data.message) {
-        const { content, conversation_id } = response.data.message;
+        const { content, conversation_id, sources, codes } = response.data.message;
         
         if (!selectedChatId && conversation_id) {
           setSelectedChatId(conversation_id);
@@ -109,6 +121,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           id: response.data.message.id,
           sender: "assistant",
           text: content,
+          sources: sources || [],
+          codes: codes || [],
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
@@ -123,16 +137,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     } catch (error) {
       console.error("Failed to send message:", error);
       setMessages((prev) => prev.slice(0, -1));
+    } finally {
+      setLoading(false);
     }
   };
 
   const clearChat = () => {
     setSelectedChatId(null);
+    setCurrentChatTitle(null);
     setMessages([]);
   };
 
   const createNewChat = () => {
     setSelectedChatId(null);
+    setCurrentChatTitle(null);
     setMessages([]);
   };
 
@@ -151,13 +169,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   const value: ChatContextType = {
     selectedChatId,
+    currentChatTitle,
     messages,
     loading,
+    selectedFiles,
     selectChat,
     sendMessage,
     clearChat,
     createNewChat,
     deleteChat,
+    setSelectedFiles,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

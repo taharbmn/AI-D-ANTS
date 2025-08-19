@@ -11,11 +11,13 @@
   "dependencies": {
     "@hugeicons/core-free-icons": "^1.0.16",
     "@hugeicons/react": "^1.0.5",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "@uiw/react-json-view": "^2.0.0-alpha.34",
     "axios": "^1.11.0",
     "next": "15.4.6",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-syntax-highlighter": "^15.6.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
