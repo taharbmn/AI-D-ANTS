@@ -1,23 +1,16 @@
 "use client";
 
-import { SentIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { SentIcon, Cancel01Icon, ArrowDown01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import DataPanel, { Bucket } from "@/components/dataPanel";
 import MessageDisplay from "@/components/MessageDisplay";
 import { useState, useEffect, useRef } from "react";
 import { useChatContext } from "@/contexts/ChatContext";
 
-const extractAnswerContent = (text: string): string => {
-  const answerMatch = text.match(/<answer>([\s\S]*?)<\/answer>/);
-  return answerMatch ? answerMatch[1].trim() : text;
-};
 
 const availableModels = [
-  { id: "llama3.1:8b", name: "Llama 3.1 8B", description: "Fast, efficient" },
-  { id: "llama3.1:70b", name: "Llama 3.1 70B", description: "More capable" },
-  { id: "mistral:7b", name: "Mistral 7B", description: "Lightweight" },
-  { id: "codellama:13b", name: "Code Llama 13B", description: "Code focused" },
-  { id: "gemma2:9b", name: "Gemma 2 9B", description: "Google's model" },
+  { id: "ollama", name: "Ollama", description: "Local AI models" },
+  { id: "databricks", name: "Databricks", description: "Cloud AI platform" },
 ];
 
 export default function Home() {
@@ -26,10 +19,10 @@ export default function Home() {
   const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; data: any }>>([]);
   const [showDatasetSelector, setShowDatasetSelector] = useState(false);
   const [message, setMessage] = useState("");
-  const [selectedModel, setSelectedModel] = useState("llama3.1:8b");
+  const [selectedModel, setSelectedModel] = useState("ollama");
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [chatWidth, setChatWidth] = useState(70); // Percentage width for chat area
+  const [chatWidth, setChatWidth] = useState(70);
   const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
@@ -194,14 +187,12 @@ export default function Home() {
   };
 
   return (
-    <div className="flex gap-0 flex-grow" ref={containerRef}>
-      {/* Chat Area */}
+    <div className="flex gap-2 flex-grow" ref={containerRef}>
       <div 
         className="bg-neutral-800 relative rounded-4xl flex flex-col transition-all duration-200 ease-out"
         style={{ width: `${chatWidth}%` }}
       >
         <div className="w-full max-h-[93.5vh] flex flex-col overflow-y-auto custom-scrollbar">
-          {/* Model Selector Header */}
           <div className="px-6 py-4 border-b border-neutral-700/50">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-medium text-white">
@@ -210,18 +201,11 @@ export default function Home() {
               <div className="relative" ref={modelDropdownRef}>
                 <button
                   onClick={() => setShowModelDropdown(!showModelDropdown)}
-                  className="flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-full text-sm text-white transition-all duration-200 min-w-[160px] shadow-lg"
+                  className="flex justify-between items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-full text-sm text-white transition-all duration-200 min-w-[160px] shadow-lg"
                 >
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                   <span className="truncate">{availableModels.find(m => m.id === selectedModel)?.name || selectedModel}</span>
-                  <svg 
-                    className={`w-4 h-4 transition-transform duration-200 ${showModelDropdown ? 'rotate-180' : ''}`} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <HugeiconsIcon icon={ArrowDown01Icon} size={20} className={`transition-transform duration-200 ${showModelDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {showModelDropdown && (
@@ -251,11 +235,7 @@ export default function Home() {
                               <p className="text-xs text-gray-400 mt-1">{model.description}</p>
                             </div>
                             {selectedModel === model.id && (
-                              <div className="w-5 h-5 text-blue-400">
-                                <svg fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              </div>
+                              <HugeiconsIcon icon={Tick02Icon}  strokeWidth={2} size={20} className="text-blue-400" />
                             )}
                           </div>
                         </button>
@@ -417,19 +397,39 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Resizable Divider */}
       <div 
-        className={`w-1 bg-neutral-600 hover:bg-blue-500 cursor-col-resize transition-colors duration-200 flex-shrink-0 ${
-          isResizing ? 'bg-blue-500' : ''
+        className={`relative flex items-center justify-center group cursor-col-resize transition-all duration-200 rounded-full ${
+          isResizing ? 'bg-blue-500/20' : 'hover:bg-neutral-700/50'
         }`}
+        style={{ width: '12px' }}
         onMouseDown={handleMouseDown}
       >
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-0.5 h-8 bg-neutral-400 rounded-full opacity-60"></div>
+        <div className="flex flex-col gap-1 items-center">
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+          <div className={`w-1 h-1 rounded-full transition-all duration-200 ${
+            isResizing ? 'bg-blue-400' : 'bg-neutral-500 group-hover:bg-neutral-400'
+          }`}></div>
+        </div>
+        
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+          <div className="bg-neutral-900 text-white text-xs px-2 py-1 rounded-lg shadow-lg whitespace-nowrap -translate-y-8">
+            Drag to resize
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-neutral-900 rotate-45 -mt-1"></div>
+          </div>
         </div>
       </div>
 
-      {/* Data Panel */}
       <div 
         className="transition-all duration-200 ease-out"
         style={{ width: `${100 - chatWidth}%` }}

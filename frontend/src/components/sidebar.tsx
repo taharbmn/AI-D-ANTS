@@ -9,6 +9,7 @@ import {
   Cancel01Icon,
   Add01Icon,
   Delete02Icon,
+  AiCloudIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
@@ -32,11 +33,14 @@ type ChatHistoryType = {
 const Sidebar = () => {
   const { selectedChatId, selectChat, createNewChat, deleteChat } = useChatContext();
   const [openChatHistory, setOpenChatHistory] = React.useState(false);
+  const [openModels, setOpenModels] = React.useState(false);
   const [showDatabricksModal, setShowDatabricksModal] = React.useState(false);
+  const [showOllamaModal, setShowOllamaModal] = React.useState(false);
   // const [showPostgreSQLModal, setShowPostgreSQLModal] = React.useState(false);
   const [chatHistory, setChatHistory] = React.useState<ChatHistoryType[]>([]);
   const [editingChatId, setEditingChatId] = React.useState<string | null>(null);
   const [newChatTitle, setNewChatTitle] = React.useState("");
+  const [ollamaModelName, setOllamaModelName] = React.useState("");
 
   useEffect(() => {
     const fetchChatHistory = async () => {
@@ -85,6 +89,20 @@ const Sidebar = () => {
   const handleCancelEdit = () => {
     setEditingChatId(null);
     setNewChatTitle("");
+  };
+
+  const handleSaveOllamaModel = () => {
+    if (ollamaModelName.trim()) {
+      // Save the Ollama model to localStorage or context
+      localStorage.setItem('ollamaModelName', ollamaModelName.trim());
+      setOllamaModelName("");
+      setShowOllamaModal(false);
+    }
+  };
+
+  const handleCancelOllamaModal = () => {
+    setOllamaModelName("");
+    setShowOllamaModal(false);
   };
 
   const handleDeleteChat = async (chatId: string, chatTitle: string) => {
@@ -228,16 +246,100 @@ const Sidebar = () => {
           </div>
         </div>
 
+        {/* Models Section */}
         <div>
-          <button
-            onClick={() => setShowDatabricksModal(true)}
-            className="flex items-center space-x-2 p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300 w-full text-left border-l-2 border-transparent hover:border-orange-400 transform hover:translate-x-1"
+          <div className="flex items-center justify-between mb-2">
+            <div
+              onClick={() => setOpenModels(!openModels)}
+              className="flex items-center justify-between space-x-2 p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300 flex-1"
+            >
+              <div className="flex items-center space-x-2">
+                <HugeiconsIcon icon={AiCloudIcon} />
+                <span>Models</span>
+              </div>
+              <HugeiconsIcon
+                icon={openModels ? ArrowUp01Icon : ArrowDown01Icon}
+                className={`text-gray-400 transition-transform duration-300 ${
+                  openModels ? "rotate-180" : ""
+                }`}
+              />
+            </div>
+          </div>
+          <div
+            className={`ml-6 overflow-hidden transition-all duration-500 ease-in-out ${
+              openModels
+                ? "max-h-40 opacity-100 mt-2"
+                : "max-h-0 opacity-0 mt-0"
+            }`}
           >
-            <HugeiconsIcon icon={Settings01Icon} />
-            <span>Databricks</span>
-          </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowOllamaModal(true)}
+                className="flex items-center space-x-2 p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300 w-full text-left border-l-2 border-transparent hover:border-green-400 transform hover:translate-x-1"
+              >
+                <span className="text-sm">Ollama</span>
+              </button>
+              <button
+                onClick={() => setShowDatabricksModal(true)}
+                className="flex items-center space-x-2 p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300 w-full text-left border-l-2 border-transparent hover:border-orange-400 transform hover:translate-x-1"
+              >
+                <span className="text-sm">Databricks</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
         </div>
       </div>
+
+      {/* Ollama Modal */}
+      {showOllamaModal && (
+        <div className="h-screen w-screen absolute inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-neutral-800 rounded-3xl p-10 w-full max-w-lg shadow-2xl border border-neutral-700">
+            <h2 className="text-2xl font-bold mb-6 text-white text-center tracking-wide">Configure Ollama Model</h2>
+            <div className="space-y-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-base text-gray-200 font-medium">
+                  Model Name<span className="text-red-400">*</span>
+                </label>
+                <input
+                  className="rounded-2xl border border-gray-500 bg-neutral-900 text-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
+                  type="text"
+                  value={ollamaModelName}
+                  onChange={(e) => setOllamaModelName(e.target.value)}
+                  placeholder="e.g., llama3.1:8b, mistral:7b"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveOllamaModel();
+                    }
+                    if (e.key === "Escape") {
+                      handleCancelOllamaModal();
+                    }
+                  }}
+                  autoFocus
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+            <div className="flex justify-between mt-8">
+              <button
+                onClick={handleCancelOllamaModal}
+                className="text-base cursor-pointer text-blue-400 hover:underline"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveOllamaModel}
+                disabled={!ollamaModelName.trim()}
+                className="bg-blue-500 cursor-pointer hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-2xl px-7 py-2 font-semibold transition-colors shadow"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDatabricksModal && (
         <SettingsModal onClose={() => setShowDatabricksModal(false)} />

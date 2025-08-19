@@ -50,3 +50,13 @@ export const createTreeStructure = async (folderPaths: string[]): Promise<TreeSt
     throw error;
   }
 };
+
+export const getProcessedTreeStructure = async (): Promise<TreeStructureResponse> => {
+  try {
+    const response = await api.get('/anomalies/processed_tree_structure');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching processed tree structure:', error);
+    throw error;
+  }
+};
