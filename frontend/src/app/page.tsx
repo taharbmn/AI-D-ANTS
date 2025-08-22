@@ -1,11 +1,12 @@
 "use client";
 
-import { SentIcon, Cancel01Icon, ArrowDown01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { SentIcon, Cancel01Icon, ArrowDown01Icon, Tick02Icon, DatabaseIcon, BarChartIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import DataPanel, { Bucket } from "@/components/dataPanel";
 import MessageDisplay from "@/components/MessageDisplay";
 import { useState, useEffect, useRef } from "react";
 import { useChatContext } from "@/contexts/ChatContext";
+import { Dashboard } from "@/components/Dashboard";
 
 
 const availableModels = [
@@ -24,6 +25,7 @@ export default function Home() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [chatWidth, setChatWidth] = useState(70);
   const [isResizing, setIsResizing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'data' | 'dashboard'>('data');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -201,7 +203,7 @@ export default function Home() {
               <div className="relative" ref={modelDropdownRef}>
                 <button
                   onClick={() => setShowModelDropdown(!showModelDropdown)}
-                  className="flex justify-between items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-full text-sm text-white transition-all duration-200 min-w-[160px] shadow-lg"
+                  className="flex justify-between items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 rounded-full text-sm text-white transition-all duration-200 min-w-[160px] "
                 >
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                   <span className="truncate">{availableModels.find(m => m.id === selectedModel)?.name || selectedModel}</span>
@@ -209,7 +211,7 @@ export default function Home() {
                 </button>
                 
                 {showModelDropdown && (
-                  <div className="absolute top-full mt-2 right-0 bg-neutral-800 border border-neutral-600 rounded-2xl shadow-2xl z-20 min-w-[280px] overflow-hidden">
+                  <div className="absolute top-full mt-2 right-0 bg-neutral-800 border border-neutral-600 rounded-2xl z-20 min-w-[280px] overflow-hidden">
                     <div className="max-h-64 overflow-y-auto">
                       {availableModels.map((model) => (
                         <button
@@ -263,7 +265,7 @@ export default function Home() {
                   }`}
                 >
                   {msg.sender === "user" ? (
-                    <div className="px-6 py-4 rounded-3xl text-base max-w-[70%] whitespace-pre-line shadow-md transition-all duration-200 bg-blue-500 text-white rounded-br-md"
+                    <div className="px-6 py-4 rounded-3xl text-base max-w-[70%] whitespace-pre-line transition-all duration-200 bg-blue-500 text-white rounded-br-md"
                          style={{ wordBreak: "break-word" }}>
                       {msg.text}
                     </div>
@@ -346,7 +348,7 @@ export default function Home() {
                 )}
 
                 {showDatasetSelector && (
-                  <div className="absolute bottom-full mb-2 left-4 bg-neutral-800 border border-gray-600 rounded-lg p-3 shadow-lg z-10 min-w-[250px]">
+                  <div className="absolute bottom-full mb-2 left-4 bg-neutral-800 border border-gray-600 rounded-lg p-3  z-10 min-w-[250px]">
                     <div className="text-sm text-gray-300 mb-2">
                       Select datasets from the Data Explorer panel →
                     </div>
@@ -423,7 +425,7 @@ export default function Home() {
         </div>
         
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-          <div className="bg-neutral-900 text-white text-xs px-2 py-1 rounded-lg shadow-lg whitespace-nowrap -translate-y-8">
+          <div className="bg-neutral-900 text-white text-xs px-2 py-1 rounded-lg  whitespace-nowrap -translate-y-8">
             Drag to resize
             <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-neutral-900 rotate-45 -mt-1"></div>
           </div>
@@ -431,15 +433,58 @@ export default function Home() {
       </div>
 
       <div 
-        className="transition-all duration-200 ease-out"
+        className="transition-all duration-200 ease-out flex flex-col"
         style={{ width: `${100 - chatWidth}%` }}
       >
-        <DataPanel
-          onBucketSelect={handleBucketSelect}
-          selectedBuckets={selectedBuckets}
-          onFileSelect={handleFileSelect}
-          selectedFiles={selectedFiles}
-        />
+       <div className="flex mb-6 space-x-4 bg-neutral-800 p-1 rounded-2xl w-fit ">
+          <button
+            onClick={() => setActiveTab('data')}
+            className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ease-out transform ${
+              activeTab === 'data'
+                ? 'bg-blue-500 text-white  scale-105 '
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-700/50'
+            }`}
+          >
+            <HugeiconsIcon 
+              icon={DatabaseIcon} 
+              size={20}
+              className={`transition-colors duration-300 ${
+                activeTab === 'data' ? 'text-white' : 'text-neutral-400'
+              }`}
+            />
+            <span className="font-semibold text-sm">Data Panel</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ease-out transform ${
+              activeTab === 'dashboard'
+                ? 'bg-blue-500 text-white  scale-105'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-700/50'
+            }`}
+          >
+            <HugeiconsIcon 
+              icon={BarChartIcon} 
+              size={20}
+              className={`transition-colors duration-300 ${
+                activeTab === 'dashboard' ? 'text-white' : 'text-neutral-400'
+              }`}
+            />
+            <span className="font-semibold text-sm">Dashboard</span>
+          </button>
+        </div>
+
+        <div className="flex-1 bg-neutral-800 rounded-2xl p-6  border border-neutral-700">
+          {activeTab === 'data' ? (
+            <DataPanel
+              onBucketSelect={handleBucketSelect}
+              selectedBuckets={selectedBuckets}
+              onFileSelect={handleFileSelect}
+              selectedFiles={selectedFiles}
+            />
+          ) : (
+            <Dashboard />
+          )}
+        </div>
       </div>
     </div>
   );
