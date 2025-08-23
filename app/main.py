@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
         # Initialize database (run migrations)
         init_database()
 
+
         # Initialize settings and system prompts
         config = initialize_config()
         system_prompts = load_system_prompts()

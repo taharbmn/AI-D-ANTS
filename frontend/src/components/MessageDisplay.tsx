@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import CodeBlock from './CodeBlock';
+import VisualizationDisplay from './VisualizationDisplay';
 import { CodeIcon, Database01Icon, ArrowDown01Icon, ArrowUp01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 
@@ -11,6 +12,7 @@ interface Message {
   text: string;
   sources?: string[];
   codes?: string[];
+  table_data?: any[];
   created_at?: string;
 }
 
@@ -31,40 +33,40 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
   const hasCode = message.codes && message.codes.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
   
-  // For testing: if no sources or codes exist, use sample data
-  const testSources = hasSources ? message.sources! : (message.sender === "assistant" ? [
-    "/Users/yassi/OneDrive/Bureau/baiss-dataset-main/baiss-dataset-main/csv/comments.csv",
-    "/Users/yassi/OneDrive/Bureau/baiss-dataset-main/baiss-dataset-main/csv/users.csv"
-  ] : []);
+  // Sample visualization data (hardcoded for now)
+  const sampleVisualizations = message.sender === "assistant" ? [
+    {
+      type: "chart" as const,
+      title: "Active Users",
+      data: [
+        { date: "2024-04-01", desktop: 222, mobile: 150 },
+        { date: "2024-04-02", desktop: 97, mobile: 180 },
+        { date: "2024-04-03", desktop: 167, mobile: 120 },
+        { date: "2024-04-04", desktop: 242, mobile: 260 },
+        { date: "2024-04-05", desktop: 373, mobile: 290 },
+        { date: "2024-04-06", desktop: 301, mobile: 340 },
+        { date: "2024-04-07", desktop: 245, mobile: 180 }
+      ],
+      labels: [
+        { name: "Desktop", color: "#3b82f6" },
+        { name: "Mobile", color: "#10b981" }
+      ]
+    },
+    {
+      type: "table" as const,
+      title: "User Statistics",
+      data: message.table_data
+    }
+  ] : [];
   
-  const testCodes = hasCode ? message.codes! : (message.sender === "assistant" ? [
-    `import pandas as pd
-import matplotlib.pyplot as plt
+  // For testing: if no sources or codes exist, use sample data
+  const testSources = hasSources ? message.sources! : [];
 
-# Load the dataset
-df = pd.read_csv('/path/to/comments.csv')
-
-# Basic analysis
-print(f"Dataset shape: {df.shape}")
-print(f"Columns: {df.columns.tolist()}")
-
-# Top countries by comment count
-country_counts = df['country'].value_counts().head(10)
-print("Top countries by comments:")
-print(country_counts)`,
-    `# Visualization
-plt.figure(figsize=(12, 6))
-country_counts.plot(kind='bar')
-plt.title('Top 10 Countries by Comment Count')
-plt.xlabel('Country')
-plt.ylabel('Number of Comments')
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()`
-  ] : []);
+  const testCodes = hasCode ? message.codes! : [];
 
   const displaySources = testSources.length > 0;
   const displayCodes = testCodes.length > 0;
+  const displayVisualizations = sampleVisualizations.length > 0;
 
   return (
     <div className="space-y-3">
@@ -81,6 +83,11 @@ plt.show()`
       >
         {extractAnswerContent(message.text)}
       </div>
+
+      {/* Visualizations section */}
+      {displayVisualizations && (
+        <VisualizationDisplay components={sampleVisualizations} />
+      )}
 
       {/* Sources section */}
       {displaySources && (

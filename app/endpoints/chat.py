@@ -37,7 +37,7 @@ load_dotenv()
 
 @router.post("/brain")
 async def chat_endpoint(request: ChatRequest):
-    
+    # TODO : Update the ouput with Jsonresponse
 
     try: 
         logging.info("new message")
@@ -111,6 +111,8 @@ async def chat_endpoint(request: ChatRequest):
         current_turn = 0
         codes = []
         sources = []
+        table_data = []
+        charts = []
 
         while current_turn < max_conversation_turns:
             current_turn += 1
@@ -137,46 +139,80 @@ async def chat_endpoint(request: ChatRequest):
 
                 if len(extract_agents) > 0:
                     for agent in extract_agents:
-                        id = agent.get("id")
-                        if not id:
-                            raise HTTPException(status_code=400, detail="Agent must include 'id' field")
-                        path = mapping_id_path[id]
-                        metadata = metadata_details[id]
-                        if not path:
-                            raise HTTPException(status_code=400, detail=f"Path for agent with id {id} not found")
-                        question = agent.get("question")
-                        if not question:
-                            raise HTTPException(status_code=400, detail="Agent must include 'question' field")
-                        data_request = DataRequest(
-                            data_source_file=path,
-                            message={
+                        agent_name = agent.get("agent")
+                        if agent_name not in ["data_expert", "chart_expert"]:
+                            raise HTTPException(status_code=400, detail=f"Unsupported agent: {agent_name}. Supported agents are 'data_expert' and 'chart_expert'")
+                        if agent_name == "data_expert":
+                            id = agent.get("id")
+                            if not id:
+                                raise HTTPException(status_code=400, detail="Agent must include 'id' field")
+                            path = mapping_id_path[id]
+                            metadata = metadata_details[id]
+                            if not path:
+                                raise HTTPException(status_code=400, detail=f"Path for agent with id {id} not found")
+                            question = agent.get("question")
+                            if not question:
+                                raise HTTPException(status_code=400, detail="Agent must include 'question' field")
+                            data_request = DataRequest(
+                                data_source_file=path,
+                                message={
+                                    "role": "user",
+                                    "content": str(question)
+                                },
+                                metadata=metadata
+                            )
+                            sources.append(path)
+
+                            data_response = await create_conversation_with_data_expert(data_request)
+                            logging.info(f"Data response for agent {id}: {data_response}")
+
+                            if not data_response:
+                                raise HTTPException(status_code=500, detail="No response from data expert")
+
+                            data_response_json = json.loads(data_response.body.decode('utf-8'))
+
+                            if data_response_json.get("success"):
+                                code = data_response_json["code"]
+                                table_data = data_response_json["data"]
+                                data_ai_messages = data_response_json["response"].get("messages")
+                                data_response_text = data_ai_messages[-1]["content"][0]["text"]
+                                message_to_brain = XmlExtractor.create_agent_answer_block(data_response_text)
+                                codes.append(code)
+                            else:
+                                message_to_brain = XmlExtractor.create_agent_answer_block("The request have failed, DO NOT TRY AGAIN, REPORT TO THE USER THAT THERE WAS A PROBLEM IN PROCESSING THE FILE")
+                            messages.append({
                                 "role": "user",
-                                "content": str(question)
-                            },
-                            metadata=metadata
-                        )
-                        sources.append(path)
+                                "content": [{"text": message_to_brain}]
+                            })
 
-                        data_response = await create_conversation_with_data_expert(data_request)
-                        logging.info(f"Data response for agent {id}: {data_response}")
+                        elif agent_name == "chart_expert":
+                            chart_type = agent.get("type")
+                            chart_type = "line"
+                            if not chart_type:
+                                raise HTTPException(status_code=400, detail="Chart agent must include 'type' field")
+                            x_axis = agent.get("x_axis")
+                            if not x_axis:
+                                raise HTTPException(status_code=400, detail="Chart agent must include 'x_axis' field")
+                            y_axis = agent.get("y_axis")
+                            if not y_axis:
+                                raise HTTPException(status_code=400, detail="Chart agent must include 'y_axis' field")
+                            for y in y_axis:
+                                if not y.get("name"):
+                                    raise HTTPException(status_code=400, detail="Each y_axis entry must include 'name' field")
+                                if not y.get("color"):
+                                    raise HTTPException(status_code=400, detail="Each y_axis entry must include 'color' field")
+                            charts.append({
+                                "type": chart_type,
+                                "x_axis": x_axis,
+                                "y_axis": y_axis
+                            })
+                            logger.info(f"Chart created successfully: {charts[-1]}")
+                            message_to_brain = XmlExtractor.create_agent_answer_block(f"Chart created successfully")
+                            messages.append({
+                                "role": "user",
+                                "content": [{"text": message_to_brain}]
+                            })
 
-                        if not data_response:
-                            raise HTTPException(status_code=500, detail="No response from data expert")
-
-                        data_response_json = json.loads(data_response.body.decode('utf-8'))
-
-                        if data_response_json.get("success"):
-                            code = data_response_json["code"]
-                            data_ai_messages = data_response_json["response"].get("messages")
-                            data_response_text = data_ai_messages[-1]["content"][0]["text"]
-                            message_to_brain = XmlExtractor.create_agent_answer_block(data_response_text)
-                            codes.append(code)
-                        else:
-                            message_to_brain = XmlExtractor.create_agent_answer_block("The request have failed, DO NOT TRY AGAIN, REPORT TO THE USER THAT THERE WAS A PROBLEM IN PROCESSING THE FILE")
-                        messages.append({
-                            "role": "user",
-                            "content": [{"text": message_to_brain}]
-                        })
                 else:
                     logging.info(f"all messages : {json.dumps(messages, indent=2)}")
                     last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
@@ -188,6 +224,8 @@ async def chat_endpoint(request: ChatRequest):
                         "response": {"messages": [last_ai_message]},
                         "codes": codes,
                         "sources": sources,
+                        "table_data": table_data,
+                        "charts": charts,
                         "error": "",
                         "stop_reason": "end_turn"
                         }
@@ -199,6 +237,8 @@ async def chat_endpoint(request: ChatRequest):
                     "response": {},
                     "codes": codes,
                     "sources": sources,
+                    "table_data": [],
+                    "charts": [],
                     "error": str(e),
                     "stop_reason": "error"
                 }
@@ -212,6 +252,8 @@ async def chat_endpoint(request: ChatRequest):
             "response": {"messages": [last_ai_message]},
             "codes": codes,
             "sources": sources,
+            "table_data": table_data,
+            "charts": charts,
             "error": "",
             "stop_reason": "end_turn"
             }
@@ -224,6 +266,8 @@ async def chat_endpoint(request: ChatRequest):
             "response": {},
             "codes": "",
             "sources": "",
+            "table_data": [],
+            "charts": [],
             "error": str(e),
             "stop_reason": "error"
         }
@@ -377,12 +421,27 @@ async def create_conversation_with_data_expert(request: DataRequest):
                     code=python_code,
                     datasourcefile=data_source_file
                 )
-                
+                table_data = execution_result.get("data")
+                answer = ""
+                max_rows_in_answer = 10
                 logger.info(f"=== CODE EXECUTION RESULT ===")
                 logger.info(f"Execution success: {execution_result['success']}")
                 logger.info(f"Execution time: {execution_result.get('execution_time', 'unknown')}")
                 if execution_result["success"]:
                     logger.info(f"Execution stdout:\n{execution_result['stdout']}")
+
+                    if table_data is not None:
+                        logger.info(f"Execution returned data with {len(table_data)} rows")
+                        if len(table_data) > max_rows_in_answer:
+                            logger.info(f"First {max_rows_in_answer} rows: {json.dumps(table_data[:max_rows_in_answer], indent=2)}")
+                            answer = f"Data has {len(table_data)} rows. Here are the first rows:\n{json.dumps(table_data[:max_rows_in_answer], indent=2)}"
+                        else:
+                            logger.info(f"Data: {json.dumps(table_data, indent=2)}")
+                            answer = f"Data has {len(table_data)} rows. Here are the rows:\n{json.dumps(table_data, indent=2)}"
+                    else:
+                        logger.info(f"No data returned")
+                        answer = f"No data returned"
+
                 else:
                     logger.error(f"Execution error: {execution_result.get('error', 'Unknown error')}")
                     if execution_result.get('stderr'):
@@ -400,13 +459,14 @@ async def create_conversation_with_data_expert(request: DataRequest):
                                     "role": "assistant",
                                     "content": [
                                         {
-                                            "text": str(execution_result["stdout"])
+                                            "text": str(answer)
                                         }
                                     ]
                                 }]
                             },
                             "code": str(python_code),
                             "error": "",
+                            "data": table_data,
                             "stop_reason": "end_turn",
                             "execution_time": execution_result.get("execution_time", "unknown")
                         }
