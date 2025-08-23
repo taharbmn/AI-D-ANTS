@@ -32,3 +32,5 @@ psutil
 
 matplotlib
 ollama
+trio
+httpcore
