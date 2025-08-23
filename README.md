@@ -83,10 +83,8 @@ AWS_SECRET_ACCESS_KEY=
 DATABRICKS_BASE_URL=
 DATABRICKS_DEFAULT_MODEL=
 
-# Ollama Configuration
 OLLAMA_DEFAULT_MODEL=qwen3:1.7b
 
-# Model Selection (databricks or ollama)
 MODEL_TYPE=ollama
 
 # Application Settings
@@ -95,13 +93,7 @@ DEBUG=False
 API_TIMEOUT=30
 MAX_RETRIES=3
 
-# Database Configuration
-DATABASE_URL=
-DB_USER=
-DB_PASSWORD=
-DB_HOST=
-DB_PORT=
-DB_NAME=
+DATABASE_URL=sqlite:///./app_database.db
 ```
 
 ## Usage

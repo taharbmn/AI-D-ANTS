@@ -206,8 +206,9 @@ def _worker_exec(code: str, result_queue: multiprocessing.Queue):
         if 'result_df' in session_globals:
             df = session_globals['result_df']
             if isinstance(df, pd.DataFrame):
-                result_data = df.to_dict('records')
-        
+                df_clean = df.replace({np.nan: None, np.inf: None, -np.inf: None})
+                result_data = df_clean.to_dict('records')
+
         result_queue.put({
             "success": True,
             "stdout" : str(stdout.getvalue()).strip(),
