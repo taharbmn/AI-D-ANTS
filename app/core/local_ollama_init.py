@@ -179,7 +179,7 @@ def configure_ollama_by_capacity():
 
         # Ensure at least 1 layer is offloaded if GPU is detected, but don't go crazy
         if ollama_gpu_layers > 0:
-            os.environ['OLLAMA_NUM_GPU'] = str(ollama_gpu_layers)
+            os.environ['OLLAMA_NUM_GPU'] = ollama_gpu_layers
             logger.info(f"🔧 Environment variable 'OLLAMA_NUM_GPU' has been set to '{ollama_gpu_layers}'.")
             logger.info("🚀 Ollama is configured to use approximately 30% of available capacity.")
         else:
