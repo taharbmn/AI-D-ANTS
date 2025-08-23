@@ -37,7 +37,7 @@ load_dotenv()
 
 @router.post("/brain")
 async def chat_endpoint(request: ChatRequest):
-    
+    # TODO : Update the ouput with Jsonresponse
 
     try: 
         logging.info("new message")
