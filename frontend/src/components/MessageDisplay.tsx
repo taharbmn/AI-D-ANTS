@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import CodeBlock from './CodeBlock';
-import { CodeIcon, Database01Icon, ArrowDown01Icon, ArrowUp01Icon } from '@hugeicons/core-free-icons';
+import DataTable from './DataTable';
+import { CodeIcon, Database01Icon, ArrowDown01Icon, ArrowUp01Icon, Table01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 
 interface Message {
@@ -11,6 +12,7 @@ interface Message {
   text: string;
   sources?: string[];
   codes?: string[];
+  table_data?: any[];
   created_at?: string;
 }
 
@@ -26,14 +28,23 @@ const extractAnswerContent = (text: string): string => {
 export default function MessageDisplay({ message }: MessageDisplayProps) {
   const [showCode, setShowCode] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [showTable, setShowTable] = useState(false);
+
+  // Debug logging
+  console.log("MessageDisplay received message:", message);
+  console.log("Table data:", message.table_data);
 
   // Check if we have actual data to display
   const hasCode = message.codes && message.codes.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
+  const hasTable = message.table_data && message.table_data.length > 0;
+  
+  console.log("Display flags:", { hasCode, hasSources, hasTable });
   
   // Only use actual data, no test/sample data
   const displaySources = hasSources;
   const displayCodes = hasCode;
+  const displayTable = hasTable;
 
   return (
     <div className="space-y-3">
@@ -86,6 +97,29 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Table section */}
+      {displayTable && (
+        <div className="max-w-[70%]">
+          <button
+            onClick={() => setShowTable(!showTable)}
+            className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors text-sm text-gray-300"
+          >
+            <HugeiconsIcon icon={Table01Icon} size={16} />
+            <span>View Table ({message.table_data!.length} row{message.table_data!.length > 1 ? 's' : ''})</span>
+            <HugeiconsIcon 
+              icon={showTable ? ArrowUp01Icon : ArrowDown01Icon} 
+              size={16} 
+            />
+          </button>
+          
+          {showTable && (
+            <div className="mt-3">
+              <DataTable data={message.table_data!} />
             </div>
           )}
         </div>

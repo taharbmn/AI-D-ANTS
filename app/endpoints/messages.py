@@ -203,10 +203,12 @@ async def create_conversation_with_first_message(
                 
                 sources = chat_response.get("sources", [])
                 codes = chat_response.get("codes", [])
+                table_data = chat_response.get("table_data", [])
             else:
                 assistant_message_content = "No response from assistant"
                 sources = []
                 codes = []
+                table_data = []
 
             # Save assistant response to database
             assistant_message = MessageCreate(
@@ -222,6 +224,7 @@ async def create_conversation_with_first_message(
                     "content": assistant_db_message.content,
                     "sources": sources,
                     "codes": codes,
+                    "table_data": table_data,
                     "conversation_id": assistant_db_message.conversation_id,
                     "created_at": assistant_db_message.created_at
                 }
@@ -246,6 +249,7 @@ async def create_conversation_with_first_message(
                     "content": assistant_db_message.content,
                     "sources": [],
                     "codes": [],
+                    "table_data": [],
                     "conversation_id": assistant_db_message.conversation_id,
                     "created_at": assistant_db_message.created_at
                 },

@@ -28,6 +28,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-900 h-screen w-screen flex p-10`}
+        suppressHydrationWarning={true}
       >
         <ChatProvider>
           <Sidebar />

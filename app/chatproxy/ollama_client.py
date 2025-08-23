@@ -1,9 +1,6 @@
 import os
 import sys
 
-import baisstools
-baisstools.insert_syspath(__file__, matcher = [r"^baiss_.*$"])
-
 import logging
 import time
 from typing import List, Dict, Any
