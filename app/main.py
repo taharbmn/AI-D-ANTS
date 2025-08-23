@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from typing import Dict
 from app.endpoints.router import api_router
 from app.core.config import initialize_config, load_system_prompts, initialize_cache_client
-from app.core.local_ollama_init import configure_ollama_by_capacity
 from app.core.embedding_db import init_embedding_db, close_embedding_db
 from app.core.db_init import init_database
 import logging
@@ -27,7 +26,7 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize database (run migrations)
         init_database()
-        configure_ollama_by_capacity()
+
 
         # Initialize settings and system prompts
         config = initialize_config()
