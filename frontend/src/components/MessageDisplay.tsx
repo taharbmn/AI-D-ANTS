@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import CodeBlock from './CodeBlock';
+import VisualizationDisplay from './VisualizationDisplay';
 import { CodeIcon, Database01Icon, ArrowDown01Icon, ArrowUp01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 
@@ -30,6 +31,37 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
   // Add sample data for testing if none exists
   const hasCode = message.codes && message.codes.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
+  
+  // Sample visualization data (hardcoded for now)
+  const sampleVisualizations = message.sender === "assistant" ? [
+    {
+      type: "chart" as const,
+      title: "Active Users",
+      data: [
+        { date: "2024-04-01", desktop: 222, mobile: 150 },
+        { date: "2024-04-02", desktop: 97, mobile: 180 },
+        { date: "2024-04-03", desktop: 167, mobile: 120 },
+        { date: "2024-04-04", desktop: 242, mobile: 260 },
+        { date: "2024-04-05", desktop: 373, mobile: 290 },
+        { date: "2024-04-06", desktop: 301, mobile: 340 },
+        { date: "2024-04-07", desktop: 245, mobile: 180 }
+      ],
+      labels: [
+        { name: "Desktop", color: "#3b82f6" },
+        { name: "Mobile", color: "#10b981" }
+      ]
+    },
+    {
+      type: "table" as const,
+      title: "User Statistics",
+      data: [
+        { date: "2024-04-01", desktop: 222, mobile: 150, total: 372 },
+        { date: "2024-04-02", desktop: 97, mobile: 180, total: 277 },
+        { date: "2024-04-03", desktop: 167, mobile: 120, total: 287 },
+        { date: "2024-04-04", desktop: 242, mobile: 260, total: 502 }
+      ]
+    }
+  ] : [];
   
   // For testing: if no sources or codes exist, use sample data
   const testSources = hasSources ? message.sources! : (message.sender === "assistant" ? [
@@ -65,6 +97,7 @@ plt.show()`
 
   const displaySources = testSources.length > 0;
   const displayCodes = testCodes.length > 0;
+  const displayVisualizations = sampleVisualizations.length > 0;
 
   return (
     <div className="space-y-3">
@@ -81,6 +114,11 @@ plt.show()`
       >
         {extractAnswerContent(message.text)}
       </div>
+
+      {/* Visualizations section */}
+      {displayVisualizations && (
+        <VisualizationDisplay components={sampleVisualizations} />
+      )}
 
       {/* Sources section */}
       {displaySources && (
