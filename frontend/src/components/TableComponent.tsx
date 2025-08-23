@@ -121,12 +121,8 @@ export default function TableComponent({
 
   return (
     <Card className="bg-neutral-700 border-neutral-600">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={DatabaseIcon} size={20} className="text-green-400" />
-          <CardTitle className="text-white text-lg">{title}</CardTitle>
-        </div>
-        {showAddButton && (
+      {showAddButton && (
+        <div className="flex justify-end p-4 pb-0">
           <Button 
             variant="outline" 
             size="sm"
@@ -145,9 +141,9 @@ export default function TableComponent({
             />
             {isAdded ? "Added!" : "Add to Dashboard"}
           </Button>
-        )}
-      </CardHeader>
-      <CardContent>
+        </div>
+      )}
+      <CardContent className={showAddButton ? "" : "pt-6"}>
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="relative flex-1">
             <HugeiconsIcon 

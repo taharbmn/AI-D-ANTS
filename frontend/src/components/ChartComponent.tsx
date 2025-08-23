@@ -25,13 +25,17 @@ interface ChartComponentProps {
   data: any[];
   labels?: Array<{ name: string; color: string }>;
   showAddButton?: boolean;
+  xAxisKey?: string;
+  yAxisConfig?: Array<{ name: string; color: string }>;
 }
 
 export default function ChartComponent({ 
   title, 
   data, 
   labels, 
-  showAddButton = false 
+  showAddButton = false,
+  xAxisKey = "date",
+  yAxisConfig = []
 }: ChartComponentProps) {
   const { addToDashboard } = useDashboardContext();
   const [isAdded, setIsAdded] = useState(false);
@@ -42,7 +46,9 @@ export default function ChartComponent({
         type: "chart",
         title,
         data,
-        labels
+        labels,
+        xAxisKey,
+        yAxisConfig
       });
       setIsAdded(true);
       // Reset the state after 2 seconds
@@ -52,12 +58,8 @@ export default function ChartComponent({
 
   return (
     <Card className="bg-neutral-700 border-neutral-600">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={BarChartIcon} size={20} className="text-blue-400" />
-          <CardTitle className="text-white text-lg">{title}</CardTitle>
-        </div>
-        {showAddButton && (
+      {showAddButton && (
+        <div className="flex justify-end p-4 pb-0">
           <Button 
             variant="outline" 
             size="sm"
@@ -76,20 +78,26 @@ export default function ChartComponent({
             />
             {isAdded ? "Added!" : "Add to Dashboard"}
           </Button>
-        )}
-      </CardHeader>
-      <CardContent>
+        </div>
+      )}
+      <CardContent className={showAddButton ? "" : "pt-6"}>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
               <CartesianGrid vertical={false} className="stroke-neutral-600" />
               <XAxis
-                dataKey="date"
+                dataKey={xAxisKey}
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
                 className="fill-neutral-400"
-                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                tickFormatter={(value) => {
+                  // Handle different data types for x-axis
+                  if (xAxisKey === "date" || (typeof value === "string" && value.includes("-"))) {
+                    return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  }
+                  return value;
+                }}
               />
               <YAxis 
                 tickLine={false}
@@ -101,22 +109,40 @@ export default function ChartComponent({
                 cursor={false}
                 content={<ChartTooltipContent />}
               />
-              <Line
-                dataKey="desktop"
-                type="monotone"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-              <Line
-                dataKey="mobile"
-                type="monotone"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6 }}
-              />
+              {yAxisConfig.length > 0 ? (
+                // Render lines based on yAxisConfig
+                yAxisConfig.map((axis, index) => (
+                  <Line
+                    key={axis.name}
+                    dataKey={axis.name}
+                    type="monotone"
+                    stroke={axis.color}
+                    strokeWidth={2}
+                    dot={{ fill: axis.color, strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                ))
+              ) : (
+                // Fallback to default lines if no yAxisConfig
+                <>
+                  <Line
+                    dataKey="desktop"
+                    type="monotone"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    dataKey="mobile"
+                    type="monotone"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </>
+              )}
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>

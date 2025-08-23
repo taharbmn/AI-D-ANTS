@@ -13,6 +13,7 @@ interface Message {
   sources?: string[];
   codes?: string[];
   table_data?: any[];
+  charts?: any[];
   created_at?: string;
 }
 
@@ -32,7 +33,10 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
   const hasCode = message.codes && message.codes.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
   
-  const sampleVisualizations = message.sender === "assistant" ? message?.table_data || [] : [];
+  const visualizationData = message.sender === "assistant" && (message?.table_data || message?.charts) ? {
+    table_data: message.table_data || [],
+    charts: message.charts || []
+  } : null;
 
   const testSources = hasSources ? message.sources! : [];
 
@@ -40,7 +44,7 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
 
   const displaySources = testSources.length > 0;
   const displayCodes = testCodes.length > 0;
-  const displayVisualizations = sampleVisualizations.length > 0;
+  const displayVisualizations = visualizationData !== null;
   return (
     <div className="space-y-3 w-full">
       <div
@@ -57,7 +61,7 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
       </div>
 
       {displayVisualizations && (
-        <VisualizationDisplay components={sampleVisualizations} />
+        <VisualizationDisplay components={visualizationData} />
       )}
 
       {displaySources && (

@@ -53,6 +53,8 @@ export function Dashboard() {
                 title={item.title}
                 data={item.data}
                 labels={item.labels}
+                xAxisKey={item.xAxisKey}
+                yAxisConfig={item.yAxisConfig}
                 showAddButton={false}
               />
             ) : (

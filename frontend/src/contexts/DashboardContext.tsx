@@ -8,6 +8,8 @@ export interface DashboardItem {
   title: string;
   data: any[];
   labels?: Array<{ name: string; color: string }>;
+  xAxisKey?: string;
+  yAxisConfig?: Array<{ name: string; color: string }>;
   addedAt: Date;
 }
 
