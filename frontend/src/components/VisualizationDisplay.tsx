@@ -149,7 +149,7 @@ const ChartComponent = ({ component }: { component: VisualizationComponent }) =>
 };
 
 const TableComponent = ({ component }: { component: VisualizationComponent }) => {
-  const columns = component.data.length > 0 ? Object.keys(component.data[0]) : [];
+  const columns = component.data?.length > 0 ? Object.keys(component?.data[0]) : [];
   
   return (
     <Card className="bg-neutral-700 border-neutral-600">
@@ -173,7 +173,7 @@ const TableComponent = ({ component }: { component: VisualizationComponent }) =>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {component.data.map((row, index) => (
+              {component.data?.map((row, index) => (
                 <TableRow
                   key={index}
                   className="hover:bg-neutral-700 border-neutral-600"

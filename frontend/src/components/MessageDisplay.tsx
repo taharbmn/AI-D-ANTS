@@ -12,6 +12,7 @@ interface Message {
   text: string;
   sources?: string[];
   codes?: string[];
+  table_data?: any[];
   created_at?: string;
 }
 
@@ -54,46 +55,14 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
     {
       type: "table" as const,
       title: "User Statistics",
-      data: [
-        { date: "2024-04-01", desktop: 222, mobile: 150, total: 372 },
-        { date: "2024-04-02", desktop: 97, mobile: 180, total: 277 },
-        { date: "2024-04-03", desktop: 167, mobile: 120, total: 287 },
-        { date: "2024-04-04", desktop: 242, mobile: 260, total: 502 }
-      ]
+      data: message.table_data
     }
   ] : [];
   
   // For testing: if no sources or codes exist, use sample data
-  const testSources = hasSources ? message.sources! : (message.sender === "assistant" ? [
-    "/Users/yassi/OneDrive/Bureau/baiss-dataset-main/baiss-dataset-main/csv/comments.csv",
-    "/Users/yassi/OneDrive/Bureau/baiss-dataset-main/baiss-dataset-main/csv/users.csv"
-  ] : []);
-  
-  const testCodes = hasCode ? message.codes! : (message.sender === "assistant" ? [
-    `import pandas as pd
-import matplotlib.pyplot as plt
+  const testSources = hasSources ? message.sources! : [];
 
-# Load the dataset
-df = pd.read_csv('/path/to/comments.csv')
-
-# Basic analysis
-print(f"Dataset shape: {df.shape}")
-print(f"Columns: {df.columns.tolist()}")
-
-# Top countries by comment count
-country_counts = df['country'].value_counts().head(10)
-print("Top countries by comments:")
-print(country_counts)`,
-    `# Visualization
-plt.figure(figsize=(12, 6))
-country_counts.plot(kind='bar')
-plt.title('Top 10 Countries by Comment Count')
-plt.xlabel('Country')
-plt.ylabel('Number of Comments')
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()`
-  ] : []);
+  const testCodes = hasCode ? message.codes! : [];
 
   const displaySources = testSources.length > 0;
   const displayCodes = testCodes.length > 0;

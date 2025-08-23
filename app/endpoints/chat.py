@@ -111,6 +111,7 @@ async def chat_endpoint(request: ChatRequest):
         current_turn = 0
         codes = []
         sources = []
+        table_data = []
 
         while current_turn < max_conversation_turns:
             current_turn += 1
@@ -167,6 +168,7 @@ async def chat_endpoint(request: ChatRequest):
 
                         if data_response_json.get("success"):
                             code = data_response_json["code"]
+                            table_data = data_response_json["data"]
                             data_ai_messages = data_response_json["response"].get("messages")
                             data_response_text = data_ai_messages[-1]["content"][0]["text"]
                             message_to_brain = XmlExtractor.create_agent_answer_block(data_response_text)
@@ -188,6 +190,7 @@ async def chat_endpoint(request: ChatRequest):
                         "response": {"messages": [last_ai_message]},
                         "codes": codes,
                         "sources": sources,
+                        "table_data": table_data,
                         "error": "",
                         "stop_reason": "end_turn"
                         }
@@ -212,6 +215,7 @@ async def chat_endpoint(request: ChatRequest):
             "response": {"messages": [last_ai_message]},
             "codes": codes,
             "sources": sources,
+            "table_data": table_data,
             "error": "",
             "stop_reason": "end_turn"
             }
@@ -377,12 +381,27 @@ async def create_conversation_with_data_expert(request: DataRequest):
                     code=python_code,
                     datasourcefile=data_source_file
                 )
-                
+                table_data = execution_result.get("data")
+                answer = ""
+                max_rows_in_answer = 10
                 logger.info(f"=== CODE EXECUTION RESULT ===")
                 logger.info(f"Execution success: {execution_result['success']}")
                 logger.info(f"Execution time: {execution_result.get('execution_time', 'unknown')}")
                 if execution_result["success"]:
                     logger.info(f"Execution stdout:\n{execution_result['stdout']}")
+
+                    if table_data is not None:
+                        logger.info(f"Execution returned data with {len(table_data)} rows")
+                        if len(table_data) > max_rows_in_answer:
+                            logger.info(f"First {max_rows_in_answer} rows: {json.dumps(table_data[:max_rows_in_answer], indent=2)}")
+                            answer = f"Data has {len(table_data)} rows. Here are the first rows:\n{json.dumps(table_data[:max_rows_in_answer], indent=2)}"
+                        else:
+                            logger.info(f"Data: {json.dumps(table_data, indent=2)}")
+                            answer = f"Data has {len(table_data)} rows. Here are the rows:\n{json.dumps(table_data, indent=2)}"
+                    else:
+                        logger.info(f"No data returned")
+                        answer = f"No data returned"
+
                 else:
                     logger.error(f"Execution error: {execution_result.get('error', 'Unknown error')}")
                     if execution_result.get('stderr'):
@@ -400,13 +419,14 @@ async def create_conversation_with_data_expert(request: DataRequest):
                                     "role": "assistant",
                                     "content": [
                                         {
-                                            "text": str(execution_result["stdout"])
+                                            "text": str(answer)
                                         }
                                     ]
                                 }]
                             },
                             "code": str(python_code),
                             "error": "",
+                            "data": table_data,
                             "stop_reason": "end_turn",
                             "execution_time": execution_result.get("execution_time", "unknown")
                         }

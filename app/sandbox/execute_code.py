@@ -1,8 +1,6 @@
 import os
 import sys
 
-import baisstools
-baisstools.insert_syspath(__file__, matcher = [r"^baiss_.*$"])
 
 import io
 import time
@@ -50,6 +48,7 @@ LOCAL_READERS = {
 SAFE_MODULES = {
     "pandas"            : ["pd"],
     "numpy"             : ["np"],
+    "datetime"          : ["datetime"],
     # "boto3"             : ["boto3"],
     # "awswrangler"       : ["wr"],
     # "matplotlib.pyplot" : ["plt"]
@@ -201,11 +200,20 @@ def _worker_exec(code: str, result_queue: multiprocessing.Queue):
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             exec(code, session_globals)
+        
+        # Check if result_df exists and convert to list of dictionaries
+        result_data = None
+        if 'result_df' in session_globals:
+            df = session_globals['result_df']
+            if isinstance(df, pd.DataFrame):
+                result_data = df.to_dict('records')
+        
         result_queue.put({
             "success": True,
             "stdout" : str(stdout.getvalue()).strip(),
             "stderr" : str(stderr.getvalue()).strip(),
-            "error"  : None
+            "error"  : None,
+            "data"   : result_data
         })
     except Exception as e:
         result_queue.put({
@@ -213,6 +221,7 @@ def _worker_exec(code: str, result_queue: multiprocessing.Queue):
             "stdout" : str(stdout.getvalue()).strip(),
             "stderr" : str(stderr.getvalue()).strip(),
             "error"  : f"{type(e).__name__}: {str(e)}\n{stderr.getvalue()}",
+            "data"   : None
         })
 
 def execute_python_code(**kwargs):
