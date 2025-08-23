@@ -230,7 +230,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   );
 
   return (
-    <div className="w-full bg-neutral-800 rounded-4xl p-6 flex flex-col gap-4 h-full">
+    <div className="w-full rounded-4xl p-6 flex flex-col gap-4 ">
       <div className="flex items-center gap-3">
         <HugeiconsIcon icon={DatabaseIcon} className="text-blue-400" size={24} />
         <h2 className="text-xl font-bold text-white">Data Explorer</h2>

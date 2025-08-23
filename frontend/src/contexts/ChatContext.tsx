@@ -132,12 +132,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
       if (response.data.message) {
         const { content, conversation_id, sources, codes, table_data } = response.data.message;
-        
-        console.log("Received message data:", { content, sources, codes, table_data });
-        
+                
         if (!selectedChatId && conversation_id) {
           setSelectedChatId(conversation_id);
-          console.log("New conversation created:", conversation_id);
         }
 
         const assistantMessage: Message = {
@@ -149,7 +146,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           table_data: table_data || [],
         };
 
-        console.log("Created assistant message:", assistantMessage);
         setMessages((prev) => [...prev, assistantMessage]);
       } else {
         console.warn("Unexpected response structure:", response.data);
