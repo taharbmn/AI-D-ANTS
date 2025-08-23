@@ -179,7 +179,7 @@ async def create_conversation_with_first_message(
             messages = chat_response["response"]["messages"]
             if messages and len(messages) > 0:
                 first_message = messages[0]
-                
+
                 # Check if first_message is a dict or string
                 if isinstance(first_message, dict):
                     # Check if content is a list or string
@@ -200,7 +200,7 @@ async def create_conversation_with_first_message(
                     assistant_message_content = first_message
                 else:
                     assistant_message_content = str(first_message)
-                
+
                 sources = chat_response.get("sources", [])
                 codes = chat_response.get("codes", [])
             else:
@@ -208,11 +208,17 @@ async def create_conversation_with_first_message(
                 sources = []
                 codes = []
 
+            # print sources and codes
+            print("Sources:", sources)
+            print("Codes:", codes)
+
             # Save assistant response to database
             assistant_message = MessageCreate(
                 content=assistant_message_content,
                 conversation_id=conversation.id,
-                sender_type="assistant"
+                sender_type="assistant",
+                sources=sources,
+                codes=codes
             )
             assistant_db_message = create_message(db=db, message=assistant_message)
 
@@ -231,15 +237,17 @@ async def create_conversation_with_first_message(
             import logging
             logging.error(f"Error parsing chat response: {e}")
             logging.error(f"Chat response structure: {chat_response}")
-            
+
             # Save a fallback message
             assistant_message = MessageCreate(
                 content="Error processing assistant response",
                 conversation_id=conversation.id,
-                sender_type="assistant"
+                sender_type="assistant",
+                sources=[],
+                codes=[]
             )
             assistant_db_message = create_message(db=db, message=assistant_message)
-            
+
             return {
                 "message": {
                     "id": assistant_db_message.id,
