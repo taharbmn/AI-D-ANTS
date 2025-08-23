@@ -7,90 +7,89 @@ import subprocess
 import logging
 logger = logging.getLogger(__name__)
 
-def _detect_amd_gpu():
+def _detect_nvidia_gpu_smi():
     """
-    Detect if AMD GPU with ROCm support is available.
+    Detect NVIDIA GPU using nvidia-smi command and get memory info.
+    Returns (detected: bool, memory_mb: int, gpu_name: str)
     """
     try:
-        # Check if PyTorch was built with ROCm support
-        if hasattr(torch.version, 'hip') and torch.version.hip is not None:
-            return True
+        result = subprocess.run([
+            'nvidia-smi', '--query-gpu=name,memory.total', '--format=csv,noheader,nounits'
+        ], capture_output=True, text=True, timeout=10)
         
-        # Alternative: Check if rocm-smi command is available
+        if result.returncode == 0:
+            lines = result.stdout.strip().split('\n')
+            for line in lines:
+                if line.strip():
+                    parts = line.split(', ')
+                    if len(parts) >= 2:
+                        gpu_name = parts[0].strip()
+                        memory_mb = float(parts[1].strip())
+                        return True, int(memory_mb), gpu_name
+        return False, 0, ""
+    except Exception as e:
+        logger.debug(f"nvidia-smi detection failed: {e}")
+        return False, 0, ""
+
+def _detect_amd_gpu():
+    """
+    Detect AMD GPU using multiple methods for Windows.
+    Returns (detected: bool, memory_mb: int, gpu_name: str)
+    """
+    try:
+        # Method 1: Try rocm-smi (if ROCm is installed)
         try:
             result = subprocess.run(['rocm-smi', '--showproductname'], 
                                  capture_output=True, text=True, timeout=5)
-            return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
-        
-        # Another alternative: Check for AMD GPU in lspci (Linux only)
-        if sys.platform == "linux":
-            try:
-                result = subprocess.run(['lspci'], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    output = result.stdout.lower()
-                    return 'amd' in output and ('radeon' in output or 'navi' in output or 'vega' in output)
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                pass
-                
-        return False
-    except Exception:
-        return False
-
-def _get_amd_memory():
-    """
-    Get AMD GPU memory information in MB.
-    """
-    try:
-        # Method 1: Try using rocm-smi
-        try:
-            result = subprocess.run(['rocm-smi', '--showmeminfo', 'vram'], 
-                                 capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')
-                for line in lines:
-                    if 'Total Memory' in line or 'VRAM Total' in line:
-                        # Extract memory value (typically in MB or GB)
-                        parts = line.split()
-                        for i, part in enumerate(parts):
-                            if part.replace('.', '').replace(',', '').isdigit():
-                                memory_val = float(part.replace(',', ''))
-                                # Check if next part indicates unit
-                                if i + 1 < len(parts):
-                                    unit = parts[i + 1].upper()
-                                    if 'GB' in unit:
-                                        return int(memory_val * 1024)
-                                    elif 'MB' in unit:
-                                        return int(memory_val)
-                                # Default assumption: MB
-                                return int(memory_val)
+                # Get memory info
+                mem_result = subprocess.run(['rocm-smi', '--showmeminfo', 'vram'], 
+                                         capture_output=True, text=True, timeout=5)
+                if mem_result.returncode == 0:
+                    lines = mem_result.stdout.strip().split('\n')
+                    for line in lines:
+                        if 'Total Memory' in line or 'VRAM Total' in line:
+                            parts = line.split()
+                            for i, part in enumerate(parts):
+                                if part.replace('.', '').replace(',', '').isdigit():
+                                    memory_val = float(part.replace(',', ''))
+                                    if i + 1 < len(parts) and 'GB' in parts[i + 1].upper():
+                                        return True, int(memory_val * 1024), "AMD GPU (ROCm)"
+                                    elif i + 1 < len(parts) and 'MB' in parts[i + 1].upper():
+                                        return True, int(memory_val), "AMD GPU (ROCm)"
+                return True, 0, "AMD GPU (ROCm - no memory info)"
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
         
-        # Method 2: Try ROCm torch functions (if available)
-        if hasattr(torch, 'cuda') and torch.cuda.is_available():
-            # Sometimes CUDA functions work with ROCm
+        # Method 2: Check WMI for AMD GPUs and try to get memory
+        if sys.platform == "win32":
             try:
-                memory_bytes = torch.cuda.get_device_properties(0).total_memory
-                return int(memory_bytes / (1024**2))
-            except Exception:
-                pass
+                result = subprocess.run([
+                    'wmic', 'path', 'win32_VideoController', 
+                    'get', 'name,adapterram', '/format:csv'
+                ], capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    lines = result.stdout.strip().split('\n')
+                    for line in lines[1:]:  # Skip header
+                        if line.strip():
+                            parts = [p.strip() for p in line.split(',')]
+                            if len(parts) >= 3 and parts[2]:  # Check if name exists
+                                gpu_name = parts[2].lower()
+                                if 'amd' in gpu_name or 'radeon' in gpu_name or 'rx ' in gpu_name:
+                                    memory_bytes = parts[1] if parts[1] else "0"
+                                    try:
+                                        memory_mb = int(memory_bytes) // (1024 * 1024)
+                                        return True, memory_mb, parts[2]
+                                    except:
+                                        return True, 0, parts[2]
+            except Exception as e:
+                logger.debug(f"WMI AMD detection failed: {e}")
         
-        # Method 3: Parse /sys/class/drm files (Linux only)
-        if sys.platform == "linux":
-            try:
-                import glob
-                for card_path in glob.glob('/sys/class/drm/card*/device/mem_info_vram_total'):
-                    with open(card_path, 'r') as f:
-                        vram_bytes = int(f.read().strip())
-                        return int(vram_bytes / (1024**2))
-            except Exception:
-                pass
-        
-        return 0
-    except Exception:
-        return 0
+        return False, 0, ""
+    except Exception as e:
+        logger.debug(f"AMD detection failed: {e}")
+        return False, 0, ""
 def configure_ollama_by_capacity():
     """
     Detects system hardware, calculates a memory budget of ~33% of total
@@ -109,21 +108,32 @@ def configure_ollama_by_capacity():
     # --- Step 1: Detect Platform and Measure Capacity ---
     
     try:
-        # Check for Windows or Linux (for NVIDIA GPUs)
-        if sys.platform in ["win32", "linux"] and torch.cuda.is_available():
-            nvmlInit()
-            handle = nvmlDeviceGetHandleByIndex(0) # Assuming usage of the first GPU
-            mem_info = nvmlDeviceGetMemoryInfo(handle)
-            total_vram_mb = mem_info.total / (1024**2)
-            nvmlShutdown()
-            
+        # Method 1: Check for NVIDIA GPUs using nvidia-smi (more reliable for Windows)
+        nvidia_detected, nvidia_memory_mb, nvidia_name = _detect_nvidia_gpu_smi()
+        if nvidia_detected and nvidia_memory_mb > 0:
             # Calculate the memory budget based on VRAM
-            memory_budget_mb = total_vram_mb * USAGE_LIMIT_FRACTION
-            detected_hardware = f"NVIDIA GPU with {total_vram_mb:.0f} MB VRAM"
+            memory_budget_mb = nvidia_memory_mb * USAGE_LIMIT_FRACTION
+            detected_hardware = f"NVIDIA GPU ({nvidia_name}) with {nvidia_memory_mb:.0f} MB VRAM"
+            logger.info(f"🚀 Detected {detected_hardware} via nvidia-smi.")
 
-            logger.info(f"✅ Detected {detected_hardware}.")
+        # Method 2: Fallback to PyTorch + NVML for NVIDIA (original method)
+        elif sys.platform in ["win32", "linux"] and torch.cuda.is_available():
+            try:
+                nvmlInit()
+                handle = nvmlDeviceGetHandleByIndex(0) # Assuming usage of the first GPU
+                mem_info = nvmlDeviceGetMemoryInfo(handle)
+                total_vram_mb = mem_info.total / (1024**2)
+                nvmlShutdown()
+                
+                # Calculate the memory budget based on VRAM
+                memory_budget_mb = total_vram_mb * USAGE_LIMIT_FRACTION
+                detected_hardware = f"NVIDIA GPU with {total_vram_mb:.0f} MB VRAM"
+                logger.info(f"✅ Detected {detected_hardware} via PyTorch/NVML.")
+            except Exception as nvml_error:
+                logger.warning(f"NVML detection failed: {nvml_error}")
+                # Will fall through to other detection methods
 
-        # Check for macOS (Apple Silicon with unified memory)
+        # Method 3: Check for macOS (Apple Silicon with unified memory)
         elif sys.platform == "darwin" and torch.backends.mps.is_available():
             total_ram_mb = psutil.virtual_memory().total / (1024**2)
             
@@ -133,28 +143,24 @@ def configure_ollama_by_capacity():
 
             logger.info(f"🍎 Detected {detected_hardware}.")
 
-        # Check for AMD GPUs (Windows/Linux with ROCm)
-        elif sys.platform in ["win32", "linux"] and _detect_amd_gpu():
-            try:
-                # Try to get AMD GPU memory info
-                amd_vram_mb = _get_amd_memory()
-                if amd_vram_mb > 0:
+        # Method 4: Check for AMD GPUs (Windows/Linux)
+        elif sys.platform in ["win32", "linux"]:
+            amd_detected, amd_memory_mb, amd_name = _detect_amd_gpu()
+            if amd_detected:
+                if amd_memory_mb > 0:
                     # Calculate the memory budget based on VRAM
-                    memory_budget_mb = amd_vram_mb * USAGE_LIMIT_FRACTION
-                    detected_hardware = f"AMD GPU with {amd_vram_mb:.0f} MB VRAM"
+                    memory_budget_mb = amd_memory_mb * USAGE_LIMIT_FRACTION
+                    detected_hardware = f"AMD GPU ({amd_name}) with {amd_memory_mb:.0f} MB VRAM"
                     logger.info(f"🔴 Detected {detected_hardware}.")
                 else:
-                    raise ValueError("Could not determine AMD GPU memory")
-            except Exception as amd_error:
-                logger.warning(f"AMD GPU detected but could not get memory info: {amd_error}")
-                # Fall back to system RAM for AMD systems
-                total_ram_mb = psutil.virtual_memory().total / (1024**2)
-                memory_budget_mb = total_ram_mb * USAGE_LIMIT_FRACTION
-                detected_hardware = f"AMD GPU (using system RAM fallback: {total_ram_mb:.0f} MB)"
-                logger.info(f"🔴 {detected_hardware}.")
+                    # Fall back to system RAM for AMD systems when memory can't be determined
+                    total_ram_mb = psutil.virtual_memory().total / (1024**2)
+                    memory_budget_mb = total_ram_mb * USAGE_LIMIT_FRACTION
+                    detected_hardware = f"AMD GPU ({amd_name}) - using system RAM fallback: {total_ram_mb:.0f} MB"
+                    logger.info(f"🔴 Detected {detected_hardware}.")
 
         # Fallback for CPU-only systems
-        else:
+        if 'memory_budget_mb' not in locals():
             total_ram_mb = psutil.virtual_memory().total / (1024**2)
             
             # Calculate the memory budget based on system RAM
