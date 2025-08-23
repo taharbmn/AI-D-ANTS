@@ -158,3 +158,31 @@ input[type="number"] {
     @apply bg-background text-foreground;
   }
 }
+
+* {
+  --sb-track-color: #262626;
+  --sb-thumb-color: #4e4e4e;
+  --sb-size: 14px;
+}
+ 
+*::-webkit-scrollbar {
+  width: var(--sb-size)
+}
+ 
+*::-webkit-scrollbar-track {
+  background: var(--sb-track-color);
+  border-radius: 3px;
+}
+ 
+*::-webkit-scrollbar-thumb {
+  background: var(--sb-thumb-color);
+  border-radius: 3px;
+ 
+}
+ 
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-color: var(--sb-thumb-color)
+                     var(--sb-track-color);
+  }
+}
