@@ -48,7 +48,6 @@ interface DataPanelProps {
   selectedFiles?: Array<{ name: string; path: string; data: any }>;
 }
 
-// Simple JSON styling for consistent appearance
 const jsonViewStyle = {
   '--w-rjv-color': '#E2E8F0',
   '--w-rjv-key-string': '#A78BFA',
@@ -73,7 +72,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   const [expandedFiles, setExpandedFiles] = useState<string[]>([]);
   const [isDragOverInput, setIsDragOverInput] = useState(false);
 
-  // Load processed tree structure on component mount
   useEffect(() => {
     const loadProcessedData = async () => {
       setIsLoading(true);
@@ -86,7 +84,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
         }
       } catch (error) {
         console.log('No processed data available yet');
-        // Don't set error for this case as it's expected when no data has been processed
       } finally {
         setIsLoading(false);
       }
@@ -105,12 +102,10 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     const isS3Path = trimmedUrl.startsWith('s3://') || trimmedUrl.includes('.s3.');
     
     if (!isS3Path) {
-      // Handle local paths - add to local paths and analyze immediately
       if (!localPaths.includes(trimmedUrl)) {
         const newLocalPaths = [...localPaths, trimmedUrl];
         setLocalPaths(newLocalPaths);
         
-        // Automatically analyze with all paths (buckets + local)
         setIsLoading(true);
         try {
           const allPaths = [
@@ -127,7 +122,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
         }
       }
       setError(null);
-      setS3Url(''); // Clear input after adding
+      setS3Url('');
       return;
     }
 
@@ -146,12 +141,10 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
 
       setBuckets([bucket]);
       
-      // Auto-select the bucket for analysis
       if (onBucketSelect) {
         onBucketSelect(bucket);
       }
       
-      // Automatically analyze the bucket along with any local paths
       const allPaths = [
         `s3://${bucketName}`,
         ...localPaths
@@ -159,7 +152,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
       const response = await createTreeStructure(allPaths);
       setTreeStructure(response.response);
       setShowTreeStructure(true);
-      setS3Url(''); // Clear input after adding
+      setS3Url('');
       
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to fetch S3 data');
@@ -210,7 +203,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     }
   };
 
-  // Drag and drop handlers for DataPanel input
   const handleInputDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOverInput(true);
@@ -227,7 +219,6 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      // Get the first file's path (in Electron, this would give us the full path)
       const filePath = (files[0] as any).path || files[0].name;
       setS3Url(filePath);
     }
@@ -333,18 +324,15 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                     className="rounded-2xl bg-neutral-700 overflow-hidden cursor-move hover:bg-neutral-600 transition-colors"
                     draggable={true}
                     onDragStart={(e) => {
-                      // Set drag data with file information
                       e.dataTransfer.setData('application/json', JSON.stringify({
                         name: fileName,
                         path: filePath,
                         data: fileData
                       }));
                       e.dataTransfer.effectAllowed = 'copy';
-                      // Add visual feedback during drag
                       e.currentTarget.style.opacity = '0.5';
                     }}
                     onDragEnd={(e) => {
-                      // Reset visual feedback when drag ends
                       e.currentTarget.style.opacity = '1';
                     }}
                     title="Drag to chat area to add as dataset"
