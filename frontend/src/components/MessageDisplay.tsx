@@ -28,16 +28,10 @@ const extractAnswerContent = (text: string): string => {
 export default function MessageDisplay({ message }: MessageDisplayProps) {
   const [showCode, setShowCode] = useState(false);
   const [showSources, setShowSources] = useState(false);
-  const [showTable, setShowTable] = useState(false);
 
-  // Debug logging
-  console.log("MessageDisplay received message:", message);
-  console.log("Table data:", message.table_data);
-
-  // Check if we have actual data to display
-  const hasCodes = message.codes && message.codes.length > 0;
+  // Add sample data for testing if none exists
+  const hasCode = message.codes && message.codes.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
-  const hasTable = message.table_data && message.table_data.length > 0;
   
   // Sample visualization data (hardcoded for now)
   const sampleVisualizations = message.sender === "assistant" ? [
@@ -61,16 +55,17 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
     {
       type: "table" as const,
       title: "User Statistics",
-      data: [
-        { date: "2024-04-01", desktop: 222, mobile: 150, total: 372 },
-        { date: "2024-04-02", desktop: 97, mobile: 180, total: 277 },
-        { date: "2024-04-03", desktop: 167, mobile: 120, total: 287 },
-        { date: "2024-04-04", desktop: 242, mobile: 260, total: 502 }
-      ]
+      data: message.table_data
     }
   ] : [];
   
+  // For testing: if no sources or codes exist, use sample data
+  const testSources = hasSources ? message.sources! : [];
 
+  const testCodes = hasCode ? message.codes! : [];
+
+  const displaySources = testSources.length > 0;
+  const displayCodes = testCodes.length > 0;
   const displayVisualizations = sampleVisualizations.length > 0;
 
   return (
@@ -95,14 +90,14 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
       )}
 
       {/* Sources section */}
-      {hasSources && (
+      {displaySources && (
         <div className="max-w-[70%]">
           <button
             onClick={() => setShowSources(!showSources)}
             className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors text-sm text-gray-300"
           >
             <HugeiconsIcon icon={Database01Icon} size={16} />
-            <span>Sources ({message.sources!.length})</span>
+            <span>Sources ({testSources.length})</span>
             <HugeiconsIcon 
               icon={showSources ? ArrowUp01Icon : ArrowDown01Icon} 
               size={16} 
@@ -111,7 +106,7 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
           
           {showSources && (
             <div className="mt-2 space-y-2">
-              {message.sources!.map((source: string, index: number) => (
+              {testSources.map((source, index) => (
                 <div 
                   key={index}
                   className="bg-neutral-800/50 border border-white/10 rounded-lg px-4 py-3"
@@ -134,38 +129,15 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
         </div>
       )}
 
-      {/* Table section */}
-      {hasTable && (
-        <div className="max-w-[70%]">
-          <button
-            onClick={() => setShowTable(!showTable)}
-            className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors text-sm text-gray-300"
-          >
-            <HugeiconsIcon icon={Table01Icon} size={16} />
-            <span>View Table ({message.table_data!.length} row{message.table_data!.length > 1 ? 's' : ''})</span>
-            <HugeiconsIcon 
-              icon={showTable ? ArrowUp01Icon : ArrowDown01Icon} 
-              size={16} 
-            />
-          </button>
-          
-          {showTable && (
-            <div className="mt-3">
-              <DataTable data={message.table_data!} />
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Code section */}
-      {hasCodes && (
+      {displayCodes && (
         <div className="max-w-[70%]">
           <button
             onClick={() => setShowCode(!showCode)}
             className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors text-sm text-gray-300"
           >
             <HugeiconsIcon icon={CodeIcon} size={16} />
-            <span>View Code ({message.codes!.length} snippet{message.codes!.length > 1 ? 's' : ''})</span>
+            <span>View Code ({testCodes.length} snippet{testCodes.length > 1 ? 's' : ''})</span>
             <HugeiconsIcon 
               icon={showCode ? ArrowUp01Icon : ArrowDown01Icon} 
               size={16} 
@@ -174,9 +146,9 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
           
           {showCode && (
             <div className="mt-3 space-y-3">
-              {message.codes!.map((code: string, index: number) => (
+              {testCodes.map((code, index) => (
                 <div key={index} className="space-y-2">
-                  {message.codes!.length > 1 && (
+                  {testCodes.length > 1 && (
                     <div className="text-sm text-gray-400 font-medium">
                       Code Snippet {index + 1}
                     </div>

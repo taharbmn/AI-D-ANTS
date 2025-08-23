@@ -98,27 +98,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           };
 
       // fake response
-      const fakeResponse = {
-        data: {
-          message: {
-            id: Date.now(),
-            content: `This is a fake AI response to your message: "${messageText}". I can see you have ${datasets?.length || 0} datasets available. This response is generated for UI testing purposes while the backend chat endpoint is temporarily disabled.`,
-            sources: ["fake_dataset_1.csv", "fake_dataset_2.json", "sample_data.xlsx"],
-            codes: [
-              "import pandas as pd\ndf = pd.read_csv('fake_dataset_1.csv')\nprint(df.head())",
-              "import json\nwith open('fake_dataset_2.json', 'r') as f:\n    data = json.load(f)\nprint(data)"
-            ],
-            conversation_id: selectedChatId || `fake_conv_${Date.now()}`,
-            created_at: new Date().toISOString()
-          },
-          error: null
-        }
-      };
+      // const fakeResponse = {
+      //   data: {
+      //     message: {
+      //       id: Date.now(),
+      //       content: `This is a fake AI response to your message: "${messageText}". I can see you have ${datasets?.length || 0} datasets available. This response is generated for UI testing purposes while the backend chat endpoint is temporarily disabled.`,
+      //       sources: ["fake_dataset_1.csv", "fake_dataset_2.json", "sample_data.xlsx"],
+      //       codes: [
+      //         "import pandas as pd\ndf = pd.read_csv('fake_dataset_1.csv')\nprint(df.head())",
+      //         "import json\nwith open('fake_dataset_2.json', 'r') as f:\n    data = json.load(f)\nprint(data)"
+      //       ],
+      //       conversation_id: selectedChatId || `fake_conv_${Date.now()}`,
+      //       created_at: new Date().toISOString()
+      //     },
+      //     error: null
+      //   }
+      // };
       
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const response = fakeResponse;
+      // await new Promise(resolve => setTimeout(resolve, 1000));
+      // const response = fakeResponse;
       
-      // const response = await api.post("/messages/", requestBody);
+      const response = await api.post("/messages/", requestBody);
       
       if (response.data.error) {
         console.error("Chat response error:", response.data.error);
