@@ -30,3 +30,13 @@
   ]@*
 }
 ```
+"chart": [{
+
+"type": "line",
+"x_axis": "date",
+"y_axis": [
+    {
+        "name": "desktop",
+        "color": "#hfazre"
+    }
+]}]
