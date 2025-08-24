@@ -1,214 +1,77 @@
 "use client";
 
-import { useState } from 'react';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer } from "recharts";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import { ArrowDown01Icon, BarChartIcon, DatabaseIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import TableComponent from "./TableComponent";
+import ChartComponent from "./ChartComponent";
 
-interface ChartData {
-  [key: string]: any;
-}
-
-interface VisualizationComponent {
-  type: "chart" | "table";
-  title: string;
-  data: ChartData[];
-  labels?: {
-    name: string;
-    color: string;
-  }[];
-}
-
-interface VisualizationDisplayProps {
-  components: VisualizationComponent[];
-}
-
-const chartConfig = {
-  desktop: {
-    label: "Desktop",
-    color: "#3b82f6",
-  },
-  mobile: {
-    label: "Mobile", 
-    color: "#10b981",
-  },
-};
-
-const DownloadButton = ({ type, title }: { type: "chart" | "table"; title: string }) => {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="bg-neutral-700 border-neutral-600 text-white hover:bg-neutral-600"
-        >
-          <HugeiconsIcon icon={ArrowDown01Icon} size={16} className="mr-2" />
-          Download
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent 
-        align="end" 
-        className="bg-neutral-800 border-neutral-600"
-      >
-        {type === "chart" ? (
-          <>
-            <DropdownMenuItem className="text-white hover:bg-neutral-700">
-              Download as PNG
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-white hover:bg-neutral-700">
-              Download as SVG
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-white hover:bg-neutral-700">
-              Download as PDF
-            </DropdownMenuItem>
-          </>
-        ) : (
-          <>
-            <DropdownMenuItem className="text-white hover:bg-neutral-700">
-              Download as CSV
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-white hover:bg-neutral-700">
-              Download as Excel
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-white hover:bg-neutral-700">
-              Download as JSON
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-};
-
-const ChartComponent = ({ component }: { component: VisualizationComponent }) => {
-  return (
-    <Card className="bg-neutral-700 border-neutral-600">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={BarChartIcon} size={20} className="text-blue-400" />
-          <CardTitle className="text-white text-lg">{component.title}</CardTitle>
-        </div>
-        <DownloadButton type="chart" title={component.title} />
-      </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={component.data}>
-              <CartesianGrid vertical={false} className="stroke-neutral-600" />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                className="fill-neutral-400"
-                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              />
-              <YAxis 
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                className="fill-neutral-400"
-              />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent />}
-              />
-              <Line
-                dataKey="desktop"
-                type="monotone"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-              <Line
-                dataKey="mobile"
-                type="monotone"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </CardContent>
-    </Card>
-  );
-};
-
-const TableComponent = ({ component }: { component: VisualizationComponent }) => {
-  const columns = component.data?.length > 0 ? Object.keys(component?.data[0]) : [];
+export default function VisualizationDisplay({ components }: any) {
+  console.log("VisualizationDisplay received components:", components);
   
-  return (
-    <Card className="bg-neutral-700 border-neutral-600">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={DatabaseIcon} size={20} className="text-green-400" />
-          <CardTitle className="text-white text-lg">{component.title}</CardTitle>
-        </div>
-        <DownloadButton type="table" title={component.title} />
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-hidden rounded-lg border border-neutral-600 bg-neutral-800">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-neutral-700 border-neutral-600">
-                {columns.map((column) => (
-                  <TableHead key={column} className="text-white px-6 py-4 capitalize">
-                    {column}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {component.data?.map((row, index) => (
-                <TableRow
-                  key={index}
-                  className="hover:bg-neutral-700 border-neutral-600"
-                >
-                  {columns.map((column) => (
-                    <TableCell key={column} className="px-6 py-4 text-white">
-                      {row[column]}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default function VisualizationDisplay({ components }: VisualizationDisplayProps) {
-  if (!components || components.length === 0) {
+  if (!components) {
+    console.log("No components received, returning null");
     return null;
   }
 
+  // Now components should be an object with table_data and charts properties
+  const tableData = components.table_data || [];
+  const chartsConfig = components.charts || [];
+
+  console.log("Extracted tableData:", tableData);
+  console.log("Extracted chartsConfig:", chartsConfig);
+  console.log("About to render charts. chartsConfig.length:", chartsConfig.length);
+  console.log("About to render table. tableData.length:", tableData.length);
+
   return (
-    <div className="max-w-[70%] space-y-4">
-      {components.map((component, index) => (
-        <div key={index}>
-          {component.type === "chart" ? (
-            <ChartComponent component={component} />
-          ) : (
-            <TableComponent component={component} />
-          )}
-        </div>
-      ))}
+    <div className="w-full space-y-4">
+      {chartsConfig.length > 0 && chartsConfig.map((chart: any, index: number) => {
+        console.log(`Processing chart ${index}:`, chart);
+        console.log("Chart type:", chart.type);
+        console.log("Chart x_axis:", chart.x_axis);
+        console.log("Chart y_axis:", chart.y_axis);
+        console.log("tableData.length:", tableData.length);
+        
+        if (chart.type === "line" && tableData.length > 0 && chart.x_axis && chart.y_axis) {
+          console.log("Chart condition met, processing...");
+          
+          const xAxisName = chart.x_axis;
+          const yAxisName = chart.y_axis[0].name;
+          
+          console.log("X-Axis Name:", xAxisName);
+          console.log("Y-Axis Name:", yAxisName);
+          console.log("Table Data:", tableData);
+          
+          const chartData = tableData.map((row: any) => {
+            const newObject = {
+              [xAxisName]: row[xAxisName],
+              [yAxisName]: row[yAxisName]
+            };
+            return newObject;
+          });
+          
+          console.log("Chart Data Created:", chartData);
+
+          return (
+            <ChartComponent
+              key={`chart-${index}`}
+              title={`Revenue by Year`}
+              data={chartData}
+              xAxisKey={chart.x_axis}
+              yAxisConfig={chart.y_axis}
+              showAddButton={true}
+            />
+          );
+        } else {
+          console.log("Chart condition NOT met");
+        }
+        return null;
+      })}
+      
+      {tableData.length > 0 && (
+        <TableComponent 
+          title="Query Results"
+          data={tableData}
+          showAddButton={true}
+        />
+      )}
     </div>
   );
 }

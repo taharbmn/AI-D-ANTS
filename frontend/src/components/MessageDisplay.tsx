@@ -13,6 +13,7 @@ interface Message {
   sources?: string[];
   codes?: string[];
   table_data?: any[];
+  charts?: any[];
   created_at?: string;
 }
 
@@ -29,54 +30,29 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
   const [showCode, setShowCode] = useState(false);
   const [showSources, setShowSources] = useState(false);
 
-  // Add sample data for testing if none exists
   const hasCode = message.codes && message.codes.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
   
-  // Sample visualization data (hardcoded for now)
-  const sampleVisualizations = message.sender === "assistant" ? [
-    {
-      type: "chart" as const,
-      title: "Active Users",
-      data: [
-        { date: "2024-04-01", desktop: 222, mobile: 150 },
-        { date: "2024-04-02", desktop: 97, mobile: 180 },
-        { date: "2024-04-03", desktop: 167, mobile: 120 },
-        { date: "2024-04-04", desktop: 242, mobile: 260 },
-        { date: "2024-04-05", desktop: 373, mobile: 290 },
-        { date: "2024-04-06", desktop: 301, mobile: 340 },
-        { date: "2024-04-07", desktop: 245, mobile: 180 }
-      ],
-      labels: [
-        { name: "Desktop", color: "#3b82f6" },
-        { name: "Mobile", color: "#10b981" }
-      ]
-    },
-    {
-      type: "table" as const,
-      title: "User Statistics",
-      data: message.table_data
-    }
-  ] : [];
-  
-  // For testing: if no sources or codes exist, use sample data
+  const visualizationData = message.sender === "assistant" && (message?.table_data || message?.charts) ? {
+    table_data: message.table_data || [],
+    charts: message.charts || []
+  } : null;
+
   const testSources = hasSources ? message.sources! : [];
 
   const testCodes = hasCode ? message.codes! : [];
 
   const displaySources = testSources.length > 0;
   const displayCodes = testCodes.length > 0;
-  const displayVisualizations = sampleVisualizations.length > 0;
-
+  const displayVisualizations = visualizationData !== null;
   return (
-    <div className="space-y-3">
-      {/* Main message content */}
+    <div className="space-y-3 w-full">
       <div
-        className={`px-6 py-4 rounded-3xl text-base max-w-[70%] whitespace-pre-line shadow-md transition-all duration-200
+        className={`px-6 py-4 rounded-3xl text-base whitespace-pre-line shadow-md transition-all duration-200
           ${
             message.sender === "user"
-              ? "bg-blue-500 text-white rounded-br-md"
-              : "bg-white/10 text-white border border-white/10 rounded-bl-md"
+              ? "bg-blue-500 text-white rounded-br-md max-w-[70%]"
+              : "bg-white/10 text-white border border-white/10 rounded-bl-md w-fit "
           }
         `}
         style={{ wordBreak: "break-word" }}
@@ -84,14 +60,12 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
         {extractAnswerContent(message.text)}
       </div>
 
-      {/* Visualizations section */}
       {displayVisualizations && (
-        <VisualizationDisplay components={sampleVisualizations} />
+        <VisualizationDisplay components={visualizationData} />
       )}
 
-      {/* Sources section */}
       {displaySources && (
-        <div className="max-w-[70%]">
+        <div className=" w-fit">
           <button
             onClick={() => setShowSources(!showSources)}
             className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors text-sm text-gray-300"
@@ -129,9 +103,8 @@ export default function MessageDisplay({ message }: MessageDisplayProps) {
         </div>
       )}
 
-      {/* Code section */}
       {displayCodes && (
-        <div className="max-w-[70%]">
+        <div className="w-fit">
           <button
             onClick={() => setShowCode(!showCode)}
             className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors text-sm text-gray-300"
