@@ -1,9 +1,17 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from app.schemas.message import MessageCreate, Message, MessageCreateWithConversation
 from app.schemas.conversation import ConversationCreate, Conversation
-from app.crud.message import create_message, get_messages_by_conversation, get_message, update_message, delete_message, get_last_messages
+from app.crud.message import (
+    create_message,
+    get_messages_by_conversation,
+    get_message,
+    update_message,
+    delete_message,
+    get_last_messages,
+    get_messages_by_conversation_paginated,
+)
 from app.crud.conversation import create_conversation, get_conversation
 from app.core.database import get_db
 from app.models.chat import ChatRequest, ChatMessage
@@ -276,8 +284,35 @@ async def create_conversation_with_first_message(
 
 
 
-@router.get("/conversation/{conversation_id}", response_model=list[Message])
-def read_messages_by_conversation(conversation_id: str, db: Session = Depends(get_db)):
-    messages = get_messages_by_conversation(db=db, conversation_id=conversation_id)
-    return messages
+@router.get("/conversation/{conversation_id}")
+def read_messages_by_conversation(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=1, le=100, description="Messages per page")
+):
+    """Return paginated messages for a conversation.
+
+    Query params:
+      page: 1-indexed page number
+      page_size: number of messages per page (max 100)
+    """
+    skip = (page - 1) * page_size
+    messages, total = get_messages_by_conversation_paginated(
+        db=db,
+        conversation_id=conversation_id,
+        skip=skip,
+        limit=page_size,
+    )
+
+    # Directly return messages; sources and codes may be null (allowed by front-end spec)
+    return {
+        "data": messages,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size if page_size else 0,
+        }
+    }
 

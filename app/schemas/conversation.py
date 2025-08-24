@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any, Union
 from datetime import datetime
 
 class MessageBase(BaseModel):
@@ -32,3 +32,7 @@ class Conversation(ConversationBase):
 
     class Config:
         from_attributes = True
+
+class ConversationWithAssets(Conversation):
+    aggregated_sources: Optional[List[Union[str, Any]]] = None
+    aggregated_codes: Optional[List[Union[str, Any]]] = None
