@@ -371,7 +371,7 @@ async def create_conversation_with_data_expert(request: DataRequest):
         
         # Set timeout and retry configuration
         DATA_EXPERT_DURATION = int(os.environ.get("DATA_EXPERT_DURATION", "60"))
-        max_fails_count = 1
+        max_fails_count = 0
         fails_count = 0
         stop_time = time.time() + DATA_EXPERT_DURATION
         
