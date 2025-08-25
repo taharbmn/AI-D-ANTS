@@ -48,7 +48,6 @@ const Sidebar = () => {
       try {
         const response = await api.get("/conversations/");
         const data = response.data;
-        console.log("Chat History:", data);
         setChatHistory(data);
       } catch (error) {
         console.error("Failed to fetch chat history:", error);
@@ -120,14 +119,14 @@ const Sidebar = () => {
   return (
     <div
       className={`transition-all duration-300 ease-in-out ${
-        isCollapsed ? "w-18" : "w-[350px]"
-      } pr-15`}
+        isCollapsed ? "w-18" : " min-w-[350px] max-w-[350px]"
+      } pr-10`}
     >
       <div className={`flex gap-4 items-center ${isCollapsed ? "justify-center w-18" : "justify-between w-full" } mb-8 `}>
         {!isCollapsed && (
           <div className="flex gap-4 items-center">
             <Image src="/logo.png" alt="Logo" width={60} height={60} />
-            <span className="font-bold text-2xl mt-2">D-ANTS</span>
+            <span className="font-bold text-2xl mt-2">AI-D-ANTS</span>
           </div>
         )}
         <button

@@ -252,7 +252,7 @@ export default function Home() {
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
-                  <h2 className="text-xl mb-2">Welcome to D-ANTS</h2>
+                  <h2 className="text-xl mb-2">Welcome to AI-D-ANTS</h2>
                   <p>Start a conversation or select a chat from the history.</p>
                 </div>
               </div>
@@ -473,7 +473,7 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="flex-1 bg-neutral-800 rounded-2xl p-6  border border-neutral-700">
+        <div className=" bg-neutral-800  rounded-2xl p-6 h-[88vh] overflow-y-scroll  border border-neutral-700">
           {activeTab === 'data' ? (
             <DataPanel
               onBucketSelect={handleBucketSelect}
