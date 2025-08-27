@@ -13,6 +13,8 @@ class Message(Base):
     conversation_id = Column(String, ForeignKey('conversations.id', ondelete="CASCADE"), nullable=False)
     sources = Column(JSON, nullable=True)
     codes = Column(JSON, nullable=True)
+    table_data = Column(JSON, nullable=True)
+    charts = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     conversation = relationship("Conversation", back_populates="messages")

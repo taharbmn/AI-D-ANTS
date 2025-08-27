@@ -230,7 +230,9 @@ async def create_conversation_with_first_message(
                 conversation_id=conversation.id,
                 sender_type="assistant",
                 sources=sources,
-                codes=codes
+                codes=codes,
+                table_data=table_data,
+                charts=charts
             )
             assistant_db_message = create_message(db=db, message=assistant_message)
 
@@ -238,10 +240,10 @@ async def create_conversation_with_first_message(
                 "message": {
                     "id": assistant_db_message.id,
                     "content": assistant_db_message.content,
-                    "sources": sources,
-                    "codes": codes,
-                    "table_data": table_data,
-                    "charts": charts,
+                    "sources": assistant_db_message.sources or sources,
+                    "codes": assistant_db_message.codes or codes,
+                    "table_data": assistant_db_message.table_data or table_data,
+                    "charts": assistant_db_message.charts or charts,
                     "conversation_id": assistant_db_message.conversation_id,
                     "created_at": assistant_db_message.created_at
                 }
@@ -258,7 +260,9 @@ async def create_conversation_with_first_message(
                 conversation_id=conversation.id,
                 sender_type="assistant",
                 sources=[],
-                codes=[]
+                codes=[],
+                table_data=[],
+                charts=[]
             )
             assistant_db_message = create_message(db=db, message=assistant_message)
 
@@ -266,10 +270,10 @@ async def create_conversation_with_first_message(
                 "message": {
                     "id": assistant_db_message.id,
                     "content": assistant_db_message.content,
-                    "sources": [],
-                    "codes": [],
-                    "table_data": [],
-                    "charts": [],
+                    "sources": assistant_db_message.sources or [],
+                    "codes": assistant_db_message.codes or [],
+                    "table_data": assistant_db_message.table_data or [],
+                    "charts": assistant_db_message.charts or [],
                     "conversation_id": assistant_db_message.conversation_id,
                     "created_at": assistant_db_message.created_at
                 },
