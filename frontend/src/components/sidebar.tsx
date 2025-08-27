@@ -14,6 +14,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
 import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import SettingsModal from "./settingsModal";
 import PostgreSQLModal from "./postgresqlModal";
 import api from "@/lib/api";
@@ -31,6 +32,7 @@ type ChatHistoryType = {
 };
 
 const Sidebar = () => {
+  const router = useRouter();
   const { selectedChatId, selectChat, createNewChat, deleteChat } =
     useChatContext();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -200,7 +202,7 @@ const Sidebar = () => {
                 {chatHistory.map((chat, index) => (
                   <div
                     key={index}
-                    onClick={() => !editingChatId && selectChat(chat.id)}
+                    onClick={() => !editingChatId && router.push(`/chat/${chat.id}`)}
                     className={`group p-3 text-sm text-gray-300 hover:bg-neutral-700 hover:text-white rounded-lg cursor-pointer transition-all duration-300 truncate border-l-2 transform hover:translate-x-1 flex justify-between items-center ${
                       selectedChatId === chat.id
                         ? "bg-neutral-700 text-white border-blue-400"

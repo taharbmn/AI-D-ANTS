@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 
 interface Message {
@@ -43,6 +44,7 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
+  const router = useRouter();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [currentChatTitle, setCurrentChatTitle] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -62,6 +64,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           text: msg.content,
           sources: msg.sources || [],
           codes: msg.codes || [],
+          table_data: msg.table_data || [],
+          charts: msg.charts || [],
           created_at: msg.created_at,
         })) || [];
 
@@ -118,6 +122,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 
         if (!selectedChatId && conversation_id) {
           setSelectedChatId(conversation_id);
+          router.push(`/chat/${conversation_id}`);
         }
 
         const assistantMessage: Message = {
@@ -157,6 +162,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setSelectedChatId(null);
     setCurrentChatTitle(null);
     setMessages([]);
+    router.push("/");
   };
 
   const deleteChat = async (chatId: string) => {
