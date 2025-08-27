@@ -32,6 +32,8 @@ def read_conversation(conversation_id: str, db: Session = Depends(get_db)):
             'conversation_id': m.conversation_id,
             'sources': m.sources,  # peut être null
             'codes': m.codes,      # peut être null
+            'table_data': m.table_data,  # peut être null
+            'charts': m.charts,    # peut être null
             'created_at': m.created_at
         }
         for m in msgs

@@ -10,6 +10,8 @@ class MessageBase(BaseModel):
     # or plain strings (current usage: file paths for sources, code snippets for codes)
     sources: Optional[List[Union[str, Dict[str, Any]]]] = None
     codes: Optional[List[Union[str, Dict[str, Any]]]] = None
+    table_data: Optional[List[Dict[str, Any]]] = None
+    charts: Optional[List[Dict[str, Any]]] = None
 
 class MessageCreate(MessageBase):
     pass
