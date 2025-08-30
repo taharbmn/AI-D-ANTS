@@ -116,7 +116,7 @@ export default function Home() {
     
     const messageToSend = message;
     setMessage("");
-    await sendMessage(messageToSend, datasetPaths);
+    await sendMessage(messageToSend, datasetPaths, selectedModel);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

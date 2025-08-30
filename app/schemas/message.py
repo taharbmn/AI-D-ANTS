@@ -20,6 +20,7 @@ class MessageCreateWithConversation(BaseModel):
     content: str
     conversation_id: Optional[str] = None
     available_datasets: Optional[list[str]] = None
+    model_type: Optional[str] = "ollama"
 
 class Message(MessageBase):
     id: str

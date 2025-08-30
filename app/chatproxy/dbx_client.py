@@ -21,7 +21,6 @@ from openai import OpenAI
 from .base_client import BaseClient
 
 logger = logging.getLogger(__name__)
-load_dotenv()
 
 class DatabricksModel(BaseClient):
 	"""
@@ -31,20 +30,20 @@ class DatabricksModel(BaseClient):
 
 	def __init__(self, 
 				 model_name: str = "databricks-meta-llama-3-3-70b-instruct",
-				 base_url: str = None):
+				 base_url: str = None,
+				 token: str = None):
 		super().__init__()
 		self.model_name = model_name
 		
 		# Get Databricks token from environment
-		self.databricks_token = os.environ.get('DATABRICKS_TOKEN')
-		if not self.databricks_token:
-			raise ValueError("DATABRICKS_TOKEN environment variable is required")
-		
-		# Set base URL - default or from environment
-		self.base_url = (base_url or 
-						os.environ.get('DATABRICKS_BASE_URL'))
-		
+		if not token:
+			raise ValueError("Databricks token must be provided")
+		self.databricks_token = token
 
+		if not base_url:
+			raise ValueError("Databricks base URL must be provided")
+		self.base_url = base_url
+		
 		self.client = OpenAI(
 			api_key=self.databricks_token,
 			base_url=self.base_url
@@ -84,6 +83,10 @@ class DatabricksModel(BaseClient):
 			
 			# Make the API call
 			response = self.client.chat.completions.create(**api_params)
+
+
+			# to debug answer
+			# logger.info(f"DatabricksModel.send response: {response}")
 			
 			# Decode and return the response
 			return self._decode_jresponse(response, raise_exception)
@@ -192,19 +195,31 @@ class DatabricksModel(BaseClient):
 			if hasattr(response, 'choices') and response.choices:
 				choice = response.choices[0]
 				content = choice.message.content if hasattr(choice.message, 'content') else ""
-				
+
+				prompt_tokens = getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0
+				completion_tokens = getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0
+				total_tokens = getattr(response.usage, 'total_tokens', 0) if hasattr(response, 'usage') else 0
+
 				# Build response in internal format
 				decoded_response = {
-					"error": False,
-					"content": content,
-					"role": "assistant",
-					"model": self.model_name,
-					"usage": {
-						"prompt_tokens": getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0,
-						"completion_tokens": getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0,
-						"total_tokens": getattr(response.usage, 'total_tokens', 0) if hasattr(response, 'usage') else 0
-					}
-				}
+                "status": 200,
+                "success": True,
+                "error": "",
+                "response": {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": [{"text": content}]
+                        }
+                    ]
+                },
+                "usage": {
+                    "inputTokens": prompt_tokens,
+                    "outputTokens": completion_tokens,
+                    "totalTokens": total_tokens
+                },
+                "metadata": {}
+            }
 				
 				return decoded_response
 			else:

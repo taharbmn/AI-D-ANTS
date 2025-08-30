@@ -22,7 +22,7 @@ import time
 from app.files.structures import TreeStructure
 from app.models.chat import ChatRequest, DataRequest
 from app.models.anomalies import CreateStructureRequest
-from app.core.config import system_prompts, client_cache
+from app.core.config import system_prompts, ai_client
 from app.endpoints.metadata import get_file_metadata
 from app.endpoints.anomalies import create_tree_structure
 from app.sandbox.execute_code import execute_python_code
@@ -42,7 +42,9 @@ async def chat_endpoint(request: ChatRequest):
     try: 
         logging.info("new message")
 
-        
+        model_type = request.model_type
+
+        client = ai_client(model_type=model_type)
 
         available_datasets = []
         mapping_id_path = {}
@@ -105,7 +107,7 @@ async def chat_endpoint(request: ChatRequest):
             "role": request.message.role,
             "content": [{"text": request.message.content}]
         })
-        client = client_cache.get("ollama")
+        
 
         max_conversation_turns = 3
         current_turn = 0
@@ -124,6 +126,8 @@ async def chat_endpoint(request: ChatRequest):
                     temperature=0.1,
                     max_tokens=5000
                 )
+
+                logging.info(f"=== AI RESPONSE ===\n{json.dumps(response, indent=2)}")
 
                 ai_messages = response["response"].get("messages")
                 last_ai_message = ai_messages[-1]["content"][0]["text"]
@@ -159,7 +163,8 @@ async def chat_endpoint(request: ChatRequest):
                                     "role": "user",
                                     "content": str(question)
                                 },
-                                metadata=metadata
+                                metadata=metadata,
+                                model_type=model_type
                             )
                             sources.append(path)
 
@@ -363,11 +368,11 @@ async def create_conversation_with_data_expert(request: DataRequest):
             {
                 "role": request.message.role,
                 "content": content_list
-            }
+            } 
         ]
         
         
-        client = client_cache.get("ollama")
+        client = ai_client(model_type=request.model_type)
         
         # Set timeout and retry configuration
         DATA_EXPERT_DURATION = int(os.environ.get("DATA_EXPERT_DURATION", "60"))

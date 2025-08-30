@@ -40,7 +40,7 @@ class OllamaClient(BaseClient):
         if self._host != "http://localhost:11434":
             self._client = ollama.Client(host=self._host)
         else:
-            self._client = ollama.Client()  # Use default client
+            self._client = ollama.Client()
 
     async def send(self, messages: List[Dict[str, Any]], system_prompt: str = None, raise_exception: bool = False, **kwargs) -> Dict[str, Any]:
         """
@@ -81,10 +81,8 @@ class OllamaClient(BaseClient):
         # Extract generation options from kwargs
         options = {
             "temperature": kwargs.get("temperature", 0.7),
-            "top_p": kwargs.get("top_p", 0.9),
-            "top_k": kwargs.get("top_k", 40),
             "repeat_penalty": kwargs.get("repeat_penalty", 1.1),
-            "num_predict": kwargs.get("max_tokens", kwargs.get("max_new_tokens", 30000))
+            "num_predict": kwargs.get("max_tokens", kwargs.get("max_new_tokens", 10000))
         }
         
         try:

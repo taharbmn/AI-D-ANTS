@@ -21,7 +21,7 @@ interface ChatContextType {
   loading: boolean;
   selectedFiles: Array<{ name: string; path: string; data: any }>;
   selectChat: (chatId: string) => Promise<void>;
-  sendMessage: (message: string, datasets?: string[]) => Promise<void>;
+  sendMessage: (message: string, datasets?: string[], modelType?: string) => Promise<void>;
   clearChat: () => void;
   createNewChat: () => void;
   deleteChat: (chatId: string) => Promise<void>;
@@ -76,7 +76,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   };
 
-  const sendMessage = async (messageText: string, datasets?: string[]) => {
+  const sendMessage = async (messageText: string, datasets?: string[], modelType?: string) => {
     if (!messageText.trim()) return;
 
     const userMessage: Message = {
@@ -92,10 +92,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             content: messageText,
             conversation_id: selectedChatId,
             available_datasets: datasets || [],
+            model_type: modelType || "ollama",
           }
         : {
             content: messageText,
             available_datasets: datasets || [],
+            model_type: modelType || "ollama",
           };
 
       // fake response
