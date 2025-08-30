@@ -85,8 +85,10 @@ class XmlExtractor:
         
         pattern = r'<answer>(.*?)</answer>'
         matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
-        
-        return [match.strip() for match in matches if match.strip()]
+
+        answer = [match.strip() for match in matches if match.strip()]
+
+        return answer
 
     @staticmethod
     def extract_agent_calls(text: str) -> List[Dict[str, Any]]:
