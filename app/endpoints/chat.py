@@ -166,10 +166,11 @@ async def chat_endpoint(request: ChatRequest):
                                 metadata=metadata,
                                 model_type=model_type
                             )
-                            sources.append(path)
+                            
 
                             data_response = await create_conversation_with_data_expert(data_request)
-                            logging.info(f"Data response for agent {id}: {data_response}")
+
+                            logging.info(f"Data response for agent {id}: {data_response.body.decode('utf-8')}")
 
                             if not data_response:
                                 raise HTTPException(status_code=500, detail="No response from data expert")
@@ -189,6 +190,7 @@ async def chat_endpoint(request: ChatRequest):
                                 "role": "user",
                                 "content": [{"text": message_to_brain}]
                             })
+                            sources.append(path)
 
                         elif agent_name == "chart_expert":
                             chart_type = agent.get("type")
@@ -219,7 +221,7 @@ async def chat_endpoint(request: ChatRequest):
                             })
 
                 else:
-                    logging.info(f"all messages : {json.dumps(messages, indent=2)}")
+                    # logging.info(f"all messages : {json.dumps(messages, indent=2)}")
                     last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
                     if last_ai_message_extracted:
                         last_ai_message = last_ai_message_extracted
@@ -376,7 +378,7 @@ async def create_conversation_with_data_expert(request: DataRequest):
         
         # Set timeout and retry configuration
         DATA_EXPERT_DURATION = int(os.environ.get("DATA_EXPERT_DURATION", "60"))
-        max_fails_count = 0
+        max_fails_count = 1
         fails_count = 0
         stop_time = time.time() + DATA_EXPERT_DURATION
         
