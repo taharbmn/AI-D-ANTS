@@ -175,7 +175,9 @@ async def create_conversation_with_first_message(
                 for msg in conversation_history
             ],
             available_datasets=message_data.available_datasets,
-            model_type=message_data.model_type
+            model_type=message_data.model_type,
+            conversation_id=str(conversation.id),
+            message_id=str(new_message.id)
         )
 
     # Send to chat endpoint

@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
 import time
-
+import pandas as pd
 from app.files.structures import TreeStructure
 from app.models.chat import ChatRequest, DataRequest
 from app.models.anomalies import CreateStructureRequest
@@ -26,7 +26,7 @@ from app.core.config import system_prompts, ai_client
 from app.endpoints.metadata import get_file_metadata
 from app.endpoints.anomalies import create_tree_structure
 from app.sandbox.execute_code import execute_python_code
-
+from app.files.files import FileReader, FileWriter
 from app.extractors.json_extractor import JsonExtractor
 from app.extractors.xml_extractor import XmlExtractor
 
@@ -225,6 +225,19 @@ async def chat_endpoint(request: ChatRequest):
                     last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
                     if last_ai_message_extracted:
                         last_ai_message = last_ai_message_extracted
+
+                    df = pd.DataFrame(table_data)
+                    if df.empty:
+                        logger.warning("DataFrame is empty. No data to write.")
+                    else:
+                        try:
+                            conversation_id = request.conversation_id
+                            message_id = request.message_id
+                            writer = FileWriter(file_path=f"local-data://data/{conversation_id}/{message_id}")
+                            writer.write_parquet(df)
+                        except Exception as e:
+                            logger.error(f"Error writing parquet file: {str(e)}")
+
                     return {
                         "status": 200,
                         "success": True,
