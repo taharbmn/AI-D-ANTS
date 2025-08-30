@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import func
+from typing import List, Tuple
 from app.models.message import Message
 from app.schemas.message import MessageCreate
 
@@ -15,6 +16,37 @@ def get_message(db: Session, message_id: str) -> Message:
 
 def get_messages_by_conversation(db: Session, conversation_id: str):
     return db.query(Message).filter(Message.conversation_id == conversation_id).all()
+
+def get_messages_by_conversation_paginated(
+    db: Session,
+    conversation_id: str,
+    skip: int = 0,
+    limit: int = 20
+) -> Tuple[List[Message], int]:
+    """Return a page of messages for a conversation and the total count.
+
+    Args:
+        db: DB session
+        conversation_id: conversation id
+        skip: number of rows to skip (offset)
+        limit: max number of rows to return
+
+    Returns:
+        (messages, total_count)
+    """
+    # Total count
+    total = db.query(func.count(Message.id)).filter(Message.conversation_id == conversation_id).scalar() or 0
+
+    # Page of messages ordered chronologically (oldest first)
+    messages = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at.asc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return messages, total
 
 def get_last_messages(db: Session, conversation_id: str, count: int = 10) -> List[Message]:
     """

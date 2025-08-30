@@ -13,21 +13,21 @@ def run_migrations():
     try:
         # Get the project root directory
         project_root = Path(__file__).parent.parent.parent
-        
+
         # Set environment variables for Alembic
         env = os.environ.copy()
         env['PYTHONPATH'] = str(project_root)
-        
+
         # Run alembic upgrade head
         result = subprocess.run(
-            ['alembic', 'upgrade', 'head'],
+            ['python', '-m', 'alembic', 'upgrade', 'head'],
             cwd=project_root,
             env=env,
             capture_output=True,
             text=True,
             check=False
         )
-        
+
         if result.returncode == 0:
             logger.info("Database migrations completed successfully")
             if result.stdout:
@@ -39,7 +39,7 @@ def run_migrations():
             if result.stdout:
                 logger.info(f"Migration output: {result.stdout}")
             raise RuntimeError(f"Database migration failed: {result.stderr}")
-            
+
     except FileNotFoundError:
         logger.error("Alembic not found. Please ensure it's installed and in PATH")
         raise

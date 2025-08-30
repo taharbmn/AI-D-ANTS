@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, DateTime
+from sqlalchemy import Column, String, ForeignKey, DateTime, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid
@@ -11,6 +11,10 @@ class Message(Base):
     content = Column(String, nullable=False)
     sender_type = Column(String, nullable=False, default="user")
     conversation_id = Column(String, ForeignKey('conversations.id', ondelete="CASCADE"), nullable=False)
+    sources = Column(JSON, nullable=True)
+    codes = Column(JSON, nullable=True)
+    table_data = Column(JSON, nullable=True)
+    charts = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     conversation = relationship("Conversation", back_populates="messages")
