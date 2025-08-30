@@ -381,12 +381,13 @@ class TreeStructure:
         return structure
 
     @staticmethod
-    async def update_metadata(structure: Dict[str, Dict]) -> Dict[str, Dict]:
+    async def update_metadata(structure: Dict[str, Dict], model_type: str) -> Dict[str, Dict]:
         # return structure # remove me
         for filename, fileinfo in list(structure.items()):
             metadata_response = await get_metadata(
                 MetaDataRequest(
-                    filepath = filename
+                    filepath = filename,
+                    model_type = model_type
                 )
             )
             metadata_result = json.loads(metadata_response.body)["result"]

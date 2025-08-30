@@ -141,7 +141,8 @@ async def chat_endpoint(request: ChatRequest):
 
                 logging.info(f"Extracted agents: {json.dumps(extract_agents, indent=2)}")
 
-                if len(extract_agents) > 0:
+                # check if extracted agents is a list of jsons
+                if len(extract_agents) > 0 and isinstance(extract_agents, list) and isinstance(extract_agents[0], dict) and "agent" in str(extract_agents[0]):
                     for agent in extract_agents:
                         agent_name = agent.get("agent")
                         if agent_name not in ["data_expert", "chart_expert"]:
@@ -233,7 +234,8 @@ async def chat_endpoint(request: ChatRequest):
                         try:
                             conversation_id = request.conversation_id
                             message_id = request.message_id
-                            writer = FileWriter(file_path=f"local-data://data/{conversation_id}/{message_id}")
+                            path = f"local-data://data/{conversation_id}/{message_id}"
+                            writer = FileWriter(file_path=path)
                             writer.write_parquet(df)
                         except Exception as e:
                             logger.error(f"Error writing parquet file: {str(e)}")

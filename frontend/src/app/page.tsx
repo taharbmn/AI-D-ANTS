@@ -480,6 +480,7 @@ export default function Home() {
               selectedBuckets={selectedBuckets}
               onFileSelect={handleFileSelect}
               selectedFiles={selectedFiles}
+              selectedModel={selectedModel}
             />
           ) : (
             <Dashboard />

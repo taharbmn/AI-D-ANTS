@@ -16,7 +16,8 @@ from app.crud.conversation import create_conversation, get_conversation
 from app.core.database import get_db
 from app.models.chat import ChatRequest, ChatMessage
 from app.endpoints.chat import chat_endpoint
-
+import logging
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def get_conversation_context(
@@ -311,6 +312,8 @@ def read_messages_by_conversation(
         skip=skip,
         limit=page_size,
     )
+
+    logger.info(f"all messages: {messages}")
 
     # Directly return messages; sources and codes may be null (allowed by front-end spec)
     return {
