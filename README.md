@@ -6,8 +6,6 @@
 
 AI-D-ANTS is an intelligent data analysis and anomaly detection system designed to interact with millions of documents across various data sources. This powerful tool enables you to map, analyze, and detect anomalies in your data, whether stored locally or in cloud storage like AWS S3.
 
-NOTE: THE REPO IS NOT READY YET, IT'S NOT WORKING WELL YET, THE FIRST VERSION WILL BE OUT IN 24 AUGUST 2025.
-
 ![AI-D-ANTS Logo](images/ai-d-ants.png)
 
 ## Features

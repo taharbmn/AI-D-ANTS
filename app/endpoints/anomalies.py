@@ -156,7 +156,8 @@ async def metadata_description(request: MetadataSampleRequest):
                 logger.error(f"Failed to read structure from file: {e}")
         # Initialize metadata for the structure
         structure = await TreeStructure.update_metadata(
-            structure = structure
+            structure = structure,
+            model_type=request.model_type
         )
         # Save the structure to the destination
         try:
@@ -182,7 +183,8 @@ async def create_tree_structure(request: CreateStructureRequest):
     logger.info(f"Creating tree structure for paths: {folder_paths}")
     try:
         json_folder_path = CreateStructureRequest(
-            folder_paths = folder_paths
+            folder_paths = folder_paths,
+            model_type = request.model_type
         )
         raw_tree_structure_response = await create_structure(json_folder_path)
         # raw_paths = raw_tree_structure.get("response", [])
@@ -198,7 +200,8 @@ async def create_tree_structure(request: CreateStructureRequest):
         logger.info(f"Raw tree structure created for paths: {raw_paths}")
 
         metadata_sample_request = MetadataSampleRequest(
-            jsons_paths = raw_paths
+            jsons_paths = raw_paths,
+            model_type  = request.model_type
         )
 
         try:
@@ -221,7 +224,8 @@ async def create_tree_structure(request: CreateStructureRequest):
         processed_paths = metadata_description_content.get("response", [])
 
         metadata_description_request = MetadataSampleRequest(
-            jsons_paths = processed_paths
+            jsons_paths = processed_paths,
+            model_type  = request.model_type
         )
         try:
             metadata_description_response = await metadata_description(metadata_description_request)
@@ -253,10 +257,12 @@ async def create_tree_structure(request: CreateStructureRequest):
             }
         )
 
+    all_structures = TreeStructure.read_all_json_structure(step="processed")
+
     return JSONResponse(
         status_code = 200,
         content = {
-            "response"   : structure,
+            "response"   : all_structures,
             "success"    : True,
             "status"     : 200
         }

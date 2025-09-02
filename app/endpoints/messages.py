@@ -16,7 +16,8 @@ from app.crud.conversation import create_conversation, get_conversation
 from app.core.database import get_db
 from app.models.chat import ChatRequest, ChatMessage
 from app.endpoints.chat import chat_endpoint
-
+import logging
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def get_conversation_context(
@@ -174,7 +175,10 @@ async def create_conversation_with_first_message(
                 )
                 for msg in conversation_history
             ],
-            available_datasets=message_data.available_datasets
+            available_datasets=message_data.available_datasets,
+            model_type=message_data.model_type,
+            conversation_id=str(conversation.id),
+            message_id=str(new_message.id)
         )
 
     # Send to chat endpoint
@@ -230,7 +234,9 @@ async def create_conversation_with_first_message(
                 conversation_id=conversation.id,
                 sender_type="assistant",
                 sources=sources,
-                codes=codes
+                codes=codes,
+                table_data=table_data,
+                charts=charts
             )
             assistant_db_message = create_message(db=db, message=assistant_message)
 
@@ -238,10 +244,10 @@ async def create_conversation_with_first_message(
                 "message": {
                     "id": assistant_db_message.id,
                     "content": assistant_db_message.content,
-                    "sources": sources,
-                    "codes": codes,
-                    "table_data": table_data,
-                    "charts": charts,
+                    "sources": assistant_db_message.sources or sources,
+                    "codes": assistant_db_message.codes or codes,
+                    "table_data": assistant_db_message.table_data or table_data,
+                    "charts": assistant_db_message.charts or charts,
                     "conversation_id": assistant_db_message.conversation_id,
                     "created_at": assistant_db_message.created_at
                 }
@@ -258,7 +264,9 @@ async def create_conversation_with_first_message(
                 conversation_id=conversation.id,
                 sender_type="assistant",
                 sources=[],
-                codes=[]
+                codes=[],
+                table_data=[],
+                charts=[]
             )
             assistant_db_message = create_message(db=db, message=assistant_message)
 
@@ -266,10 +274,10 @@ async def create_conversation_with_first_message(
                 "message": {
                     "id": assistant_db_message.id,
                     "content": assistant_db_message.content,
-                    "sources": [],
-                    "codes": [],
-                    "table_data": [],
-                    "charts": [],
+                    "sources": assistant_db_message.sources or [],
+                    "codes": assistant_db_message.codes or [],
+                    "table_data": assistant_db_message.table_data or [],
+                    "charts": assistant_db_message.charts or [],
                     "conversation_id": assistant_db_message.conversation_id,
                     "created_at": assistant_db_message.created_at
                 },
@@ -304,6 +312,8 @@ def read_messages_by_conversation(
         skip=skip,
         limit=page_size,
     )
+
+    logger.info(f"all messages: {messages}")
 
     # Directly return messages; sources and codes may be null (allowed by front-end spec)
     return {

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from typing import Dict
 from app.endpoints.router import api_router
-from app.core.config import initialize_config, load_system_prompts, initialize_cache_client
+from app.core.config import initialize_config, load_system_prompts
 from app.core.embedding_db import init_embedding_db, close_embedding_db
 from app.core.db_init import init_database
 import logging
@@ -32,15 +32,11 @@ async def lifespan(app: FastAPI):
         config = initialize_config()
         system_prompts = load_system_prompts()
 
-        # Initialize and validate clients
-        client_cache = initialize_cache_client()
 
         # Initialize embedding database
-        init_embedding_db()
+        # init_embedding_db()
 
         logger.info("loaded system prompts: %s", len(system_prompts))
-        logger.info("Application startup complete with config: %s", config)
-        logger.info("Client cache initialized with clients: %s", client_cache)
         logger.info("Application startup complete.")
     except Exception as e:
         logger.error(f"Error during application startup: {str(e)}")

@@ -18,15 +18,15 @@ from fastapi import APIRouter, HTTPException
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
 import time
-
+import pandas as pd
 from app.files.structures import TreeStructure
 from app.models.chat import ChatRequest, DataRequest
 from app.models.anomalies import CreateStructureRequest
-from app.core.config import system_prompts, client_cache
+from app.core.config import system_prompts, ai_client
 from app.endpoints.metadata import get_file_metadata
 from app.endpoints.anomalies import create_tree_structure
 from app.sandbox.execute_code import execute_python_code
-
+from app.files.files import FileReader, FileWriter
 from app.extractors.json_extractor import JsonExtractor
 from app.extractors.xml_extractor import XmlExtractor
 
@@ -42,7 +42,9 @@ async def chat_endpoint(request: ChatRequest):
     try: 
         logging.info("new message")
 
-        
+        model_type = request.model_type
+
+        client = ai_client(model_type=model_type)
 
         available_datasets = []
         mapping_id_path = {}
@@ -105,7 +107,7 @@ async def chat_endpoint(request: ChatRequest):
             "role": request.message.role,
             "content": [{"text": request.message.content}]
         })
-        client = client_cache.get("ollama")
+        
 
         max_conversation_turns = 3
         current_turn = 0
@@ -125,6 +127,8 @@ async def chat_endpoint(request: ChatRequest):
                     max_tokens=5000
                 )
 
+                logging.info(f"=== AI RESPONSE ===\n{json.dumps(response, indent=2)}")
+
                 ai_messages = response["response"].get("messages")
                 last_ai_message = ai_messages[-1]["content"][0]["text"]
 
@@ -137,7 +141,8 @@ async def chat_endpoint(request: ChatRequest):
 
                 logging.info(f"Extracted agents: {json.dumps(extract_agents, indent=2)}")
 
-                if len(extract_agents) > 0:
+                # check if extracted agents is a list of jsons
+                if len(extract_agents) > 0 and isinstance(extract_agents, list) and isinstance(extract_agents[0], dict) and "agent" in str(extract_agents[0]):
                     for agent in extract_agents:
                         agent_name = agent.get("agent")
                         if agent_name not in ["data_expert", "chart_expert"]:
@@ -159,12 +164,14 @@ async def chat_endpoint(request: ChatRequest):
                                     "role": "user",
                                     "content": str(question)
                                 },
-                                metadata=metadata
+                                metadata=metadata,
+                                model_type=model_type
                             )
-                            sources.append(path)
+                            
 
                             data_response = await create_conversation_with_data_expert(data_request)
-                            logging.info(f"Data response for agent {id}: {data_response}")
+
+                            logging.info(f"Data response for agent {id}: {data_response.body.decode('utf-8')}")
 
                             if not data_response:
                                 raise HTTPException(status_code=500, detail="No response from data expert")
@@ -184,6 +191,7 @@ async def chat_endpoint(request: ChatRequest):
                                 "role": "user",
                                 "content": [{"text": message_to_brain}]
                             })
+                            sources.append(path)
 
                         elif agent_name == "chart_expert":
                             chart_type = agent.get("type")
@@ -214,10 +222,24 @@ async def chat_endpoint(request: ChatRequest):
                             })
 
                 else:
-                    logging.info(f"all messages : {json.dumps(messages, indent=2)}")
+                    # logging.info(f"all messages : {json.dumps(messages, indent=2)}")
                     last_ai_message_extracted = XmlExtractor.extract_answer(last_ai_message)
                     if last_ai_message_extracted:
                         last_ai_message = last_ai_message_extracted
+
+                    df = pd.DataFrame(table_data)
+                    if df.empty:
+                        logger.warning("DataFrame is empty. No data to write.")
+                    else:
+                        try:
+                            conversation_id = request.conversation_id
+                            message_id = request.message_id
+                            path = f"local-data://data/{conversation_id}/{message_id}"
+                            writer = FileWriter(file_path=path)
+                            writer.write_parquet(df)
+                        except Exception as e:
+                            logger.error(f"Error writing parquet file: {str(e)}")
+
                     return {
                         "status": 200,
                         "success": True,
@@ -363,11 +385,11 @@ async def create_conversation_with_data_expert(request: DataRequest):
             {
                 "role": request.message.role,
                 "content": content_list
-            }
+            } 
         ]
         
         
-        client = client_cache.get("ollama")
+        client = ai_client(model_type=request.model_type)
         
         # Set timeout and retry configuration
         DATA_EXPERT_DURATION = int(os.environ.get("DATA_EXPERT_DURATION", "60"))

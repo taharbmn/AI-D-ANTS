@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 from app.models.chat import (
     MetaDataRequest
 )
-from app.core.config import client_cache
+from app.core.config import ai_client, system_prompts
 from dotenv import load_dotenv
 import logging
 import json
@@ -22,24 +22,6 @@ load_dotenv()
 DATA_EXPERT_DURATION = int(os.environ.get("DATA_EXPERT_DURATION", "60"), 10)
  
 os.environ["NUMBER_OF_PYTHON_SCRIPTS"] = "5"
-
-
-def get_metadata_system_prompt() -> str:
-    """Read the metadata system prompt from the metadata.md file"""
-    try:
-        # Get the path to the metadata.md file
-        current_dir = Path(__file__).parent.parent
-        metadata_file = current_dir / "system_prompt" / "metadata.md"
-        
-        if not metadata_file.exists():
-            logger.warning(f"Metadata system prompt file not found at {metadata_file}")
-            return "You are a data analyst. Analyze the provided dataset metadata and provide insights."
-        
-        with open(metadata_file, 'r', encoding='utf-8') as file:
-            return file.read()
-    except Exception as e:
-        logger.error(f"Error reading metadata system prompt: {str(e)}")
-        return "You are a data analyst. Analyze the provided dataset metadata and provide insights."
 
 
 @router.post("/metadata")
@@ -74,7 +56,7 @@ async def get_metadata(
         )
     
     # Get system prompt from metadata.md file
-    system_prompt = get_metadata_system_prompt()
+    system_prompt = system_prompts.get("metadata")
     # logger.info(f"Using system prompt: {system_prompt}")
     
     # Prepare messages for AI
@@ -99,9 +81,9 @@ async def get_metadata(
     ]
 
     # Initialize Databricks AI client
-    client = client_cache.get("ollama")
+    client = ai_client(model_type=request.model_type)
 
-    for try_count in range(3):
+    try:
 
         response = await client.send(
             messages      = messages,
@@ -112,18 +94,14 @@ async def get_metadata(
         logger.info(f"AI Response: {json.dumps(response, indent=2)}")
         if response["error"]:
             logger.error(f"Error in metadata response: {response.get('message', 'Unknown error')}")
-            time.sleep(1)
-            continue
         try:
             validator = MetadataValidator(
                 text           = response["response"]["messages"][0]["content"][0]["text"],
                 column_names   = file_metadata_result["metadata"]["columns"]["names"],
                 raise_on_error = True
             )
-        except Exception as e:
-            logger.error(f"Metadata validation failed: {str(e)}")
-            continue
-        return JSONResponse(
+
+            return JSONResponse(
             status_code = 200,
             content = {
                 "status" : 200,
@@ -136,15 +114,20 @@ async def get_metadata(
                 "error": None
             }
         )
-    return JSONResponse(
+        except Exception as e:
+            logger.error(f"Metadata validation failed: {str(e)}")
+                
+    except Exception as e:
+        logger.error(f"Error occurred while processing metadata: {str(e)}")
+        return JSONResponse(
         status_code = 500,
         content = {
             "status" : 500,
             "success": False,
             "result" : None,
             "error"  : "Failed to process metadata after multiple attempts"
-        }
-    )
+            }
+        )
 
 
 def get_file_data_wrapper(file_path: str) -> Dict[str, Any]:

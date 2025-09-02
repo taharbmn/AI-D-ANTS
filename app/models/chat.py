@@ -16,16 +16,36 @@ class ChatRequest(BaseModel):
         None,
         description="List of available datasets for the chat"
     )
+    model_type: str = Field(
+        ...,
+        description="Type of model to use for the chat (ollama or databricks)"
+    )
+    conversation_id: Optional[str] = Field(
+        None,
+        description="ID of the conversation"
+    )
+    message_id: Optional[str] = Field(
+        None,
+        description="ID of the message"
+    )
 
 
 class MetaDataRequest(BaseModel):
     filepath: str
+    model_type: str = Field(
+        ...,
+        description="Type of model to use for the metadata request (ollama or databricks)"
+    )
 
 
 class DataRequest(BaseModel):
     data_source_file: str = Field(..., description="S3 path to the data file")
     message: ChatMessage = Field(..., description="User message with question about the data")
     metadata: Optional[Dict[str, Any]] = Field(..., description="Metadata for the data request")
+    model_type: str = Field(
+        ...,
+        description="Type of model to use for the data request (ollama or databricks)"
+    )
 
 class AnalyzeRequest(BaseModel):
     """

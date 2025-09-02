@@ -31,6 +31,7 @@ export default api;
 // Anomalies API functions
 export interface CreateTreeStructureRequest {
   folder_paths: string[];
+  model_type?: string;
 }
 
 export interface TreeStructureResponse {
@@ -39,10 +40,11 @@ export interface TreeStructureResponse {
   status: number;
 }
 
-export const createTreeStructure = async (folderPaths: string[]): Promise<TreeStructureResponse> => {
+export const createTreeStructure = async (folderPaths: string[], modelType: string = 'ollama'): Promise<TreeStructureResponse> => {
   try {
     const response = await api.post('/anomalies/create_tree_structure', {
-      folder_paths: folderPaths
+      folder_paths: folderPaths,
+      model_type: modelType
     });
     return response.data;
   } catch (error) {

@@ -18,10 +18,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import JsonView from '@uiw/react-json-view';
 import {
-  getS3Buckets,
-  getBucketObjects,
-  getObjectContent,
-  testBucketConnection
+  getS3Buckets
 } from '../lib/s3-actions';
 import { createTreeStructure, getProcessedTreeStructure } from '../lib/api';
 
@@ -46,6 +43,7 @@ interface DataPanelProps {
   selectedBuckets?: Bucket[];
   onFileSelect?: (file: { name: string; path: string; data: any }) => void;
   selectedFiles?: Array<{ name: string; path: string; data: any }>;
+  selectedModel?: string;
 }
 
 const jsonViewStyle = {
@@ -57,7 +55,7 @@ const jsonViewStyle = {
   '--w-rjv-type-boolean-color': '#F59E0B',
 } as React.CSSProperties;
 
-const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets = [], onFileSelect, selectedFiles = [] }) => {
+const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets = [], onFileSelect, selectedFiles = [], selectedModel = 'ollama' }) => {
   const [s3Url, setS3Url] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [buckets, setBuckets] = useState<Bucket[]>([]);
@@ -99,83 +97,30 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
     }
 
     const trimmedUrl = s3Url.trim();
-    const isS3Path = trimmedUrl.startsWith('s3://') || trimmedUrl.includes('.s3.');
     
-    if (!isS3Path) {
-      if (!localPaths.includes(trimmedUrl)) {
-        const newLocalPaths = [...localPaths, trimmedUrl];
-        setLocalPaths(newLocalPaths);
-        
-        setIsLoading(true);
-        try {
-          const allPaths = [
-            ...selectedBuckets.map(bucket => `s3://${bucket.name}`),
-            ...newLocalPaths
-          ];
-          const response = await createTreeStructure(allPaths);
-          setTreeStructure(response.response);
-          setShowTreeStructure(true);
-        } catch (error) {
-          setError(error instanceof Error ? error.message : 'Failed to analyze data');
-        } finally {
-          setIsLoading(false);
-        }
-      }
-      setError(null);
-      setS3Url('');
-      return;
+    // Add the path to our paths array (whether it's S3 or local)
+    const newPaths = [...localPaths];
+    if (!newPaths.includes(trimmedUrl)) {
+      newPaths.push(trimmedUrl);
+      setLocalPaths(newPaths);
     }
-
+    
     setIsLoading(true);
     setError(null);
 
     try {
-      const bucketName = trimmedUrl.replace('s3://', '').split('/')[0];
-      const objectsResponse = await getBucketObjects(bucketName);
-      
-      const bucket: Bucket = {
-        name: bucketName,
-        files: objectsResponse.objects.map(obj => obj.key),
-        objects: objectsResponse.objects
-      };
-
-      setBuckets([bucket]);
-      
-      if (onBucketSelect) {
-        onBucketSelect(bucket);
-      }
-      
+      // Send all paths (including S3 paths) to the backend for processing
       const allPaths = [
-        `s3://${bucketName}`,
-        ...localPaths
+        ...selectedBuckets.map(bucket => `s3://${bucket.name}`),
+        ...newPaths
       ];
-      const response = await createTreeStructure(allPaths);
+      const response = await createTreeStructure(allPaths, selectedModel);
       setTreeStructure(response.response);
       setShowTreeStructure(true);
       setS3Url('');
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to fetch S3 data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFileClick = async (bucketName: string, fileName: string) => {
-    if (selectedFile === fileName) {
-      setSelectedFile(null);
-      setJsonData(null);
-      return;
-    }
-
-    setSelectedFile(fileName);
-    setIsLoading(true);
-
-    try {
-      const content = await getObjectContent(bucketName, fileName);
-      setJsonData(content.content);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to load file');
+      setError(error instanceof Error ? error.message : 'Failed to analyze data');
     } finally {
       setIsLoading(false);
     }
@@ -193,7 +138,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
         ...selectedBuckets.map(bucket => `s3://${bucket.name}`),
         ...localPaths
       ];
-      const response = await createTreeStructure(allPaths);
+      const response = await createTreeStructure(allPaths, selectedModel);
       setTreeStructure(response.response);
       setShowTreeStructure(true);
     } catch (error) {
@@ -269,6 +214,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
             </div>
           )}
         </div>
+        
         <button
           onClick={handlePullBuckets}
           disabled={isLoading || !s3Url.trim()}
@@ -498,33 +444,12 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
             {expandedBucket === bucket.name && (
               <div className="ml-4 space-y-1">
                 {bucket.files.map((file) => (
-                  <div key={file}>
-                    <div
-                      onClick={() => handleFileClick(bucket.name, file)}
-                      className={`p-3 text-sm cursor-pointer rounded-xl transition-colors flex items-center gap-2 ${
-                        selectedFile === file
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-300 hover:bg-neutral-600 bg-neutral-800'
-                      }`}
-                    >
-                      <HugeiconsIcon icon={FileIcon} className="text-blue-400" size={14} />
-                      <span>{file}</span>
-                    </div>
-                    
-                    {selectedFile === file && jsonData && (
-                      <div className="mt-2 p-3 bg-black/40 rounded-xl">
-                        <div className="text-xs text-gray-400 mb-2">File Content:</div>
-                        <div className="max-h-64 overflow-y-auto">
-                          <JsonView
-                            value={jsonData}
-                            displayDataTypes={false}
-                            enableClipboard={false}
-                            collapsed={1}
-                            style={jsonViewStyle}
-                          />
-                        </div>
-                      </div>
-                    )}
+                  <div
+                    key={file}
+                    className="p-3 text-sm rounded-xl transition-colors flex items-center gap-2 text-gray-300 hover:bg-neutral-600 bg-neutral-800"
+                  >
+                    <HugeiconsIcon icon={FileIcon} className="text-blue-400" size={14} />
+                    <span>{file}</span>
                   </div>
                 ))}
               </div>
