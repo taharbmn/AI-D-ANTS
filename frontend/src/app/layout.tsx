@@ -28,13 +28,17 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" >
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-900 h-screen w-screen flex p-10`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-900 h-screen w-screen flex xl:p-10 p-4`}
         suppressHydrationWarning={true}
       >
         <ChatProvider>
           <DashboardProvider>
-            <Sidebar />
-            {children}
+            <div className="flex w-full h-full relative">
+              <Sidebar />
+              <div className="flex-1 xl:ml-0">
+                {children}
+              </div>
+            </div>
           </DashboardProvider>
         </ChatProvider>
       </body>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 
 interface Message {
@@ -43,6 +44,7 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
+  const router = useRouter();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [currentChatTitle, setCurrentChatTitle] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,6 +62,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           id: msg.id,
           sender: msg.sender_type === "user" ? "user" : "assistant",
           text: msg.content,
+          sources: msg.sources || [],
+          codes: msg.codes || [],
+          table_data: msg.table_data || [],
+          charts: msg.charts || [],
           created_at: msg.created_at,
         })) || [];
 
@@ -100,26 +106,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             model_type: modelType || "ollama",
           };
 
-      // fake response
-      // const fakeResponse = {
-      //   data: {
-      //     message: {
-      //       id: Date.now(),
-      //       content: `This is a fake AI response to your message: "${messageText}". I can see you have ${datasets?.length || 0} datasets available. This response is generated for UI testing purposes while the backend chat endpoint is temporarily disabled.`,
-      //       sources: ["fake_dataset_1.csv", "fake_dataset_2.json", "sample_data.xlsx"],
-      //       codes: [
-      //         "import pandas as pd\ndf = pd.read_csv('fake_dataset_1.csv')\nprint(df.head())",
-      //         "import json\nwith open('fake_dataset_2.json', 'r') as f:\n    data = json.load(f)\nprint(data)"
-      //       ],
-      //       conversation_id: selectedChatId || `fake_conv_${Date.now()}`,
-      //       created_at: new Date().toISOString()
-      //     },
-      //     error: null
-      //   }
-      // };
-      
-      // await new Promise(resolve => setTimeout(resolve, 1000));
-      // const response = fakeResponse;
       
       const response = await api.post("/messages/", requestBody);
       
@@ -138,6 +124,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 
         if (!selectedChatId && conversation_id) {
           setSelectedChatId(conversation_id);
+          router.push(`/chat/${conversation_id}`);
         }
 
         const assistantMessage: Message = {
@@ -177,6 +164,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setSelectedChatId(null);
     setCurrentChatTitle(null);
     setMessages([]);
+    router.push("/");
   };
 
   const deleteChat = async (chatId: string) => {

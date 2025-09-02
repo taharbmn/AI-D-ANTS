@@ -10,10 +10,13 @@ import {
   Delete02Icon,
   AiCloudIcon,
   Menu01Icon,
+  ArrowRight02Icon,
+  ArrowLeft02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
 import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import SettingsModal from "./settingsModal";
 import PostgreSQLModal from "./postgresqlModal";
 import api from "@/lib/api";
@@ -31,6 +34,7 @@ type ChatHistoryType = {
 };
 
 const Sidebar = () => {
+  const router = useRouter();
   const { selectedChatId, selectChat, createNewChat, deleteChat } =
     useChatContext();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -42,6 +46,20 @@ const Sidebar = () => {
   const [editingChatId, setEditingChatId] = React.useState<string | null>(null);
   const [newChatTitle, setNewChatTitle] = React.useState("");
   const [ollamaModelName, setOllamaModelName] = React.useState("");
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isXlScreen, setIsXlScreen] = React.useState(false);
+
+  // Check screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsXlScreen(window.innerWidth >= 1280);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   useEffect(() => {
     const fetchChatHistory = async () => {
@@ -117,51 +135,81 @@ const Sidebar = () => {
   };
 
   return (
-    <div
-      className={`transition-all duration-300 ease-in-out ${
-        isCollapsed ? "w-18" : " min-w-[350px] max-w-[350px]"
-      } pr-10`}
-    >
-      <div className={`flex gap-4 items-center ${isCollapsed ? "justify-center w-18" : "justify-between w-full" } mb-8 `}>
-        {!isCollapsed && (
-          <div className="flex gap-4 items-center">
-            <Image src="/logo.png" alt="Logo" width={60} height={60} />
-            <span className="font-bold text-2xl mt-2">AI-D-ANTS</span>
-          </div>
-        )}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300"
-          title="Collapse Sidebar"
-        >
-          <HugeiconsIcon icon={Menu01Icon} size={24} />
-        </button>
-      </div>
+    <>
+      {/* Overlay for mobile sidebar */}
+      {isSidebarOpen && !isXlScreen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 xl:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
-      {isCollapsed ? (
-        <div className="space-y-4 flex flex-col items-center w-18">
-          <button
-            onClick={() => {
-              setIsCollapsed(false);
-              setTimeout(() => setOpenChatHistory(true), 100);
-            }}
-            className="p-3 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center"
-            title="Chat History"
-          >
-            <HugeiconsIcon icon={Message01Icon} size={24} />
-          </button>
-          <button
-            onClick={() => {
-              setIsCollapsed(false);
-              setTimeout(() => setOpenModels(true), 100);
-            }}
-            className="p-3 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center"
-            title="Models"
-          >
-            <HugeiconsIcon icon={AiCloudIcon} size={24} />
-          </button>
+      {/* Floating Toggle Button - Only visible on screens smaller than xl */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className={`fixed top-1/2 -translate-y-1/2 xl:hidden z-50 w-12 h-12 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ${
+          isSidebarOpen ? 'left-[21rem]' : 'left-4'
+        }`}
+      >
+        <HugeiconsIcon 
+          icon={isSidebarOpen ? ArrowLeft02Icon : ArrowRight02Icon} 
+          size={20} 
+          className="text-white" 
+        />
+      </button>
+
+      {/* Sidebar Container - Absolute on small screens, relative on xl+ */}
+      <div
+        className={`transition-all duration-300 ease-in-out bg-neutral-900 
+          fixed xl:relative top-0 xl:top-0 left-0 xl:left-0 bottom-0 xl:bottom-0 
+          w-80 z-40 xl:z-auto rounded-r-2xl xl:rounded-none
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}
+          ${isCollapsed ? "xl:w-18" : "xl:min-w-[350px] xl:max-w-[350px]"} 
+          xl:pr-10 p-6 xl:p-0 overflow-y-auto`}
+      >
+        <div className={`flex gap-4 items-center ${isCollapsed && isXlScreen ? "justify-center w-18" : "justify-between w-full" } mb-8 `}>
+          {(!isCollapsed || !isXlScreen) && (
+            <div className="flex gap-4 items-center">
+              <Image src="/logo.png" alt="Logo" width={60} height={60} />
+              <span className="font-bold text-2xl mt-2">AI-D-ANTS</span>
+            </div>
+          )}
+          {/* Only show collapse button on xl+ screens */}
+          {isXlScreen && (
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-2 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-300"
+              title="Collapse Sidebar"
+            >
+              <HugeiconsIcon icon={Menu01Icon} size={24} />
+            </button>
+          )}
         </div>
-      ) : (
+
+        {isCollapsed && isXlScreen ? (
+          <div className="space-y-4 flex flex-col items-center w-18">
+            <button
+              onClick={() => {
+                setIsCollapsed(false);
+                setTimeout(() => setOpenChatHistory(true), 100);
+              }}
+              className="p-3 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center"
+              title="Chat History"
+            >
+              <HugeiconsIcon icon={Message01Icon} size={24} />
+            </button>
+            <button
+              onClick={() => {
+                setIsCollapsed(false);
+                setTimeout(() => setOpenModels(true), 100);
+              }}
+              className="p-3 hover:bg-neutral-700 rounded-lg cursor-pointer transition-all duration-200 flex items-center justify-center"
+              title="Models"
+            >
+              <HugeiconsIcon icon={AiCloudIcon} size={24} />
+            </button>
+          </div>
+        ) : (
         <div className="space-y-6">
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -200,7 +248,7 @@ const Sidebar = () => {
                 {chatHistory.map((chat, index) => (
                   <div
                     key={index}
-                    onClick={() => !editingChatId && selectChat(chat.id)}
+                    onClick={() => !editingChatId && router.push(`/chat/${chat.id}`)}
                     className={`group p-3 text-sm text-gray-300 hover:bg-neutral-700 hover:text-white rounded-lg cursor-pointer transition-all duration-300 truncate border-l-2 transform hover:translate-x-1 flex justify-between items-center ${
                       selectedChatId === chat.id
                         ? "bg-neutral-700 text-white border-blue-400"
@@ -327,7 +375,7 @@ const Sidebar = () => {
             </div>
           </div>
         </div>
-      )}
+        )}
 
       {showOllamaModal && (
         <div className="h-screen w-screen absolute inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -381,7 +429,8 @@ const Sidebar = () => {
       {showDatabricksModal && (
         <SettingsModal onClose={() => setShowDatabricksModal(false)} />
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

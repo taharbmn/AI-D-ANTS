@@ -175,7 +175,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
   );
 
   return (
-    <div className="w-full rounded-4xl p-6 flex flex-col gap-4 ">
+    <div className="w-full flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <HugeiconsIcon icon={DatabaseIcon} className="text-blue-400" size={24} />
         <h2 className="text-xl font-bold text-white">Data Explorer</h2>
@@ -300,7 +300,7 @@ const DataPanel: React.FC<DataPanelProps> = ({ onBucketSelect, selectedBuckets =
                             }
                           }}
                           disabled={selectedFiles.some(selected => selected.path === filePath)}
-                          className={`rounded-full p-1 transition-colors flex items-center justify-center ${
+                          className={`rounded-full min-h-10 min-w-10 p-1 transition-colors flex items-center justify-center ${
                             selectedFiles.some(selected => selected.path === filePath)
                               ? 'bg-green-600 text-white cursor-default'
                               : 'bg-blue-500 hover:bg-blue-600 text-white cursor-pointer'
