@@ -276,7 +276,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="w-full flex flex-col px-24 gap-6 py-4 h-[74vh] overflow-y-scroll">
+          <div className="w-full flex flex-col px-4 xl:px-24 gap-6 py-4 h-[74vh] max-w-[95vw] overflow-y-scroll">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
