@@ -1,6 +1,6 @@
 "use client";
 
-import { SentIcon, Cancel01Icon, ArrowDown01Icon, Tick02Icon, DatabaseIcon, BarChartIcon } from "@hugeicons/core-free-icons";
+import { SentIcon, Cancel01Icon, ArrowDown01Icon, Tick02Icon, DatabaseIcon, BarChartIcon, ArrowRight02Icon, ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import DataPanel, { Bucket } from "@/components/dataPanel";
 import MessageDisplay from "@/components/MessageDisplay";
@@ -26,9 +26,23 @@ export default function Home() {
   const [chatWidth, setChatWidth] = useState(70);
   const [isResizing, setIsResizing] = useState(false);
   const [activeTab, setActiveTab] = useState<'data' | 'dashboard'>('data');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [is2XlScreen, setIs2XlScreen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Check screen size
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIs2XlScreen(window.innerWidth >= 1536);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -51,20 +65,25 @@ export default function Home() {
     };
   }, []);
 
-  // Resizer functionality
+  // Resizer functionality - only works on 2xl+ screens
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!is2XlScreen) return;
     e.preventDefault();
     setIsResizing(true);
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || !containerRef.current) return;
+      if (!isResizing || !containerRef.current || !is2XlScreen) return;
       
       const containerRect = containerRef.current.getBoundingClientRect();
-      const newChatWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      // Account for the resizer width (12px) and gaps
+      const usableWidth = containerRect.width - 12; // Subtract resizer width
+      const mouseX = e.clientX - containerRect.left;
+      const newChatWidth = (mouseX / containerRect.width) * 100;
       
-      const constrainedWidth = Math.min(Math.max(newChatWidth, 30), 80);
+      // Allow wider range: minimum 15% for sidebar, maximum 85% for chat
+      const constrainedWidth = Math.min(Math.max(newChatWidth, 15), 85);
       setChatWidth(constrainedWidth);
     };
 
@@ -72,7 +91,7 @@ export default function Home() {
       setIsResizing(false);
     };
 
-    if (isResizing) {
+    if (isResizing && is2XlScreen) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'col-resize';
@@ -85,7 +104,7 @@ export default function Home() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing]);
+  }, [isResizing, is2XlScreen]);
 
   const handleBucketSelect = (bucket: Bucket) => {
     if (!selectedBuckets.some((selected) => selected.name === bucket.name)) {
@@ -189,10 +208,19 @@ export default function Home() {
   };
 
   return (
-    <div className="flex gap-2 flex-grow" ref={containerRef}>
+    <div className="flex gap-2 flex-grow relative" ref={containerRef}>
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 2xl:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      
       <div 
-        className="bg-neutral-800 relative rounded-4xl flex flex-col transition-all duration-200 ease-out"
-        style={{ width: `${chatWidth}%` }}
+        className="bg-neutral-800 bg relative rounded-4xl flex flex-col transition-all duration-200 ease-out w-full"
+        style={{
+          width: is2XlScreen ? `${chatWidth}%` : '100%'
+        }}
       >
         <div className="w-full max-h-[93.5vh] flex flex-col overflow-y-auto custom-scrollbar">
           <div className="px-6 py-4 border-b border-neutral-700/50">
@@ -400,7 +428,7 @@ export default function Home() {
       </div>
 
       <div 
-        className={`relative flex items-center justify-center group cursor-col-resize transition-all duration-200 rounded-full ${
+        className={`relative hidden 2xl:flex items-center justify-center group cursor-col-resize transition-all duration-200 rounded-full ${
           isResizing ? 'bg-blue-500/20' : 'hover:bg-neutral-700/50'
         }`}
         style={{ width: '12px' }}
@@ -432,59 +460,77 @@ export default function Home() {
         </div>
       </div>
 
-      <div 
-        className="transition-all duration-200 ease-out flex flex-col"
-        style={{ width: `${100 - chatWidth}%` }}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className={`fixed top-1/2 -translate-y-1/2 right-4 2xl:hidden z-50 w-12 h-12 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ${
+          isSidebarOpen ? 'right-[415px]' : 'right-4'
+        }`}
       >
-       <div className="flex mb-6 space-x-4 bg-neutral-800 p-1 rounded-2xl w-fit ">
-          <button
-            onClick={() => setActiveTab('data')}
-            className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ease-out transform ${
-              activeTab === 'data'
-                ? 'bg-blue-500 text-white  scale-105 '
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-700/50'
-            }`}
-          >
-            <HugeiconsIcon 
-              icon={DatabaseIcon} 
-              size={20}
-              className={`transition-colors duration-300 ${
-                activeTab === 'data' ? 'text-white' : 'text-neutral-400'
-              }`}
-            />
-            <span className="font-semibold text-sm">Data Panel</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ease-out transform ${
-              activeTab === 'dashboard'
-                ? 'bg-blue-500 text-white  scale-105'
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-700/50'
-            }`}
-          >
-            <HugeiconsIcon 
-              icon={BarChartIcon} 
-              size={20}
-              className={`transition-colors duration-300 ${
-                activeTab === 'dashboard' ? 'text-white' : 'text-neutral-400'
-              }`}
-            />
-            <span className="font-semibold text-sm">Dashboard</span>
-          </button>
-        </div>
+        <HugeiconsIcon 
+          icon={isSidebarOpen ? ArrowRight02Icon : ArrowLeft02Icon} 
+          size={20} 
+          className="text-white" 
+        />
+      </button>
 
-        <div className=" bg-neutral-800  rounded-2xl p-6 h-[88vh] overflow-y-scroll  border border-neutral-700">
-          {activeTab === 'data' ? (
-            <DataPanel
-              onBucketSelect={handleBucketSelect}
-              selectedBuckets={selectedBuckets}
-              onFileSelect={handleFileSelect}
-              selectedFiles={selectedFiles}
-              selectedModel={selectedModel}
-            />
-          ) : (
-            <Dashboard />
-          )}
+      <div 
+        className={`transition-all duration-300 ease-out flex flex-col bg-neutral-800 rounded-2xl
+          fixed 2xl:relative top-4 2xl:top-0 right-4 2xl:right-0 bottom-4 2xl:bottom-0 
+          w-80 z-40 2xl:z-auto
+          ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full 2xl:translate-x-0'}`}
+        style={{
+          width: is2XlScreen ? `${100 - chatWidth}%` : '24rem'
+        }}
+      >
+        <div className="p-6">
+          <div className="flex mb-6 space-x-4 bg-neutral-700 p-1 rounded-2xl w-fit">
+            <button
+              onClick={() => setActiveTab('data')}
+              className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ease-out transform ${
+                activeTab === 'data'
+                  ? 'bg-blue-500 text-white  scale-105 '
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-600/50'
+              }`}
+            >
+              <HugeiconsIcon 
+                icon={DatabaseIcon} 
+                size={20}
+                className={`transition-colors duration-300 ${
+                  activeTab === 'data' ? 'text-white' : 'text-neutral-400'
+                }`}
+              />
+              <span className="font-semibold text-sm">Data Panel</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ease-out transform ${
+                activeTab === 'dashboard'
+                  ? 'bg-blue-500 text-white  scale-105'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-600/50'
+              }`}
+            >
+              <HugeiconsIcon 
+                icon={BarChartIcon} 
+                size={20}
+                className={`transition-colors duration-300 ${
+                  activeTab === 'dashboard' ? 'text-white' : 'text-neutral-400'
+                }`}
+              />
+              <span className="font-semibold text-sm">Dashboard</span>
+            </button>
+          </div>
+
+            {activeTab === 'data' ? (
+              <DataPanel
+                onBucketSelect={handleBucketSelect}
+                selectedBuckets={selectedBuckets}
+                onFileSelect={handleFileSelect}
+                selectedFiles={selectedFiles}
+                selectedModel={selectedModel}
+              />
+            ) : (
+              <Dashboard />
+            )}
         </div>
       </div>
     </div>
